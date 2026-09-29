@@ -1,0 +1,2 @@
+-- Booking service stores operational booking data.
+-- No static bookings are inserted by default.

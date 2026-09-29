@@ -1,0 +1,2 @@
+package com.agacostays.payment.consumer; import lombok.extern.slf4j.Slf4j; import org.springframework.kafka.annotation.KafkaListener; import org.springframework.stereotype.Component;
+@Slf4j @Component public class FinalBillGeneratedEventConsumer { @KafkaListener(topics="final-bill.generated",groupId="payment-service-final-bill-group") public void onFinalBillGenerated(String message){log.info("Received FinalBillGenerated event: {}",message);} }

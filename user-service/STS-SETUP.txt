@@ -1,0 +1,18 @@
+AGA CoStays User Service — Spring Tool Suite
+
+1. Extract user-service-complete-properties.zip.
+2. STS -> File -> Import -> Maven -> Existing Maven Projects.
+3. Select the extracted user-service folder.
+4. Create PostgreSQL database: user_db.
+5. Check src/main/resources/application.properties.
+6. Start PostgreSQL.
+7. Set JWT_SECRET to the same secret used by Auth Service.
+8. Start Branch Service at http://localhost:8083 for branch validation.
+9. Start the service:
+   com.agacostays.user.UserServiceApplication
+10. Test:
+   GET http://localhost:8082/actuator/health
+11. Obtain an access token from Auth Service and use:
+   Authorization: Bearer <TOKEN>
+
+The service validates JWTs again instead of trusting the gateway alone.

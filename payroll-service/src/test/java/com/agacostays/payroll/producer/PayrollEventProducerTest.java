@@ -1,0 +1,1 @@
+package com.agacostays.payroll.producer; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertNotNull; import com.agacostays.payroll.event.PayrollGeneratedEvent; class PayrollEventProducerTest{@Test void load(){assertNotNull(PayrollGeneratedEvent.class);}}

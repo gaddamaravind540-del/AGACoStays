@@ -1,0 +1,4 @@
+package com.agacostays.billing.entity;
+import com.agacostays.billing.enums.InvoiceStatus;import jakarta.persistence.*;import lombok.*;import java.time.OffsetDateTime;
+@Entity @Table(name="invoices") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class Invoice{ @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="invoice_id") Long invoiceId; @Column(name="bill_id",nullable=false,unique=true) Long billId; @Column(name="invoice_number",nullable=false,unique=true) String invoiceNumber; @Enumerated(EnumType.STRING) @Column(name="invoice_status",nullable=false) InvoiceStatus invoiceStatus=InvoiceStatus.GENERATED; @Column(name="invoice_url") String invoiceUrl; @Column(name="generated_at",nullable=false) OffsetDateTime generatedAt; @PrePersist void create(){generatedAt=OffsetDateTime.now();} }

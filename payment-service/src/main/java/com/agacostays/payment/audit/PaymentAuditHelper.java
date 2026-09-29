@@ -1,0 +1,1 @@
+package com.agacostays.payment.audit; import lombok.extern.slf4j.Slf4j; import org.springframework.stereotype.Component; @Slf4j @Component public class PaymentAuditHelper { public void log(AuditLogRequest r){log.info("PAYMENT_AUDIT action={} actor={} resource={} details={}",r.action(),r.actorId(),r.resourceId(),r.details());} }

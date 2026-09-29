@@ -1,0 +1,2 @@
+package com.agacostays.payment.consumer; import lombok.extern.slf4j.Slf4j; import org.springframework.kafka.annotation.KafkaListener; import org.springframework.stereotype.Component;
+@Slf4j @Component public class BookingCancelledEventConsumer { @KafkaListener(topics="booking.cancelled",groupId="payment-service-booking-cancel-group") public void onBookingCancelled(String message){log.info("Received BookingCancelled event: {}",message);} }

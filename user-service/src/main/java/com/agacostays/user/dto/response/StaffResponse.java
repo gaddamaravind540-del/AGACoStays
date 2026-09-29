@@ -1,0 +1,2 @@
+package com.agacostays.user.dto.response;
+public record StaffResponse(Long staffId,Long userId,String fullName,String email,String phone,String department,String shift,String joiningDate,String roleName,String status) {}

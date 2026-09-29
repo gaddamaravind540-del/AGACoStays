@@ -1,0 +1,40 @@
+AGA CoStays Payment Service — copy/paste package
+
+1. Create/open the Spring Boot project named payment-service.
+2. Copy the ZIP contents preserving folders.
+3. Create PostgreSQL database payment_db.
+4. Set DB_USERNAME / DB_PASSWORD, JWT_SECRET and payment gateway settings.
+5. In STS: Run As > Maven test, then Run As > Spring Boot App.
+
+Port: 8088
+Swagger: http://localhost:8088/swagger-ui.html
+Health: http://localhost:8088/actuator/health
+
+SOURCE ALIGNMENT
+The source documents define Payment Service, payment_db, the payment workflow, the payment APIs, the package/file structure, and the rule that gateway/webhook state is authoritative. Exact enum members and several DTO fields are not fully enumerated in the source, so those implementation details are explicitly practical choices.
+
+LOCAL GATEWAY MODE
+payment.gateway.mock-enabled=true is suitable for local development. Production should disable mock mode and use the real gateway integration/credentials. Do not mark SUCCESS from a browser callback alone; verify the signed gateway result or webhook.
+
+ROUTES
+POST /api/payments/create
+POST /api/payments/orders
+POST /api/payments/verify
+GET /api/payments/my-payments
+GET /api/payments/{paymentId}
+GET /api/payments/booking/{bookingId}
+GET /api/manager/hotel-branches/{branchId}/payments
+POST /api/payments/{paymentId}/refund
+POST /api/payments/{paymentId}/refunds
+GET /api/payments/{paymentId}/refunds
+GET /api/refunds/{refundId}
+POST /api/payments/webhook
+POST /api/payments/webhooks/razorpay
+POST /api/restaurant/payments/create
+POST /api/restaurant/payments/verify
+GET /api/restaurant/payments/order/{orderId}
+POST /api/billing/payments
+
+Java file count: 102
+
+See PAYMENT-API-SAMPLES.md for request bodies.

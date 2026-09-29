@@ -1,0 +1,1 @@
+package com.agacostays.billing.service; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.*; public class BillingServiceTest{ @Test void classExists(){assertNotNull(BillingService.class);} }

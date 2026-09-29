@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.math.BigDecimal; public record PayrollReportResponse(String dimension,String value,long staffCount,BigDecimal grossAmount,BigDecimal netAmount){}

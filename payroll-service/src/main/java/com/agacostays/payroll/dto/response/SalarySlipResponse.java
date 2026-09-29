@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.time.OffsetDateTime; public record SalarySlipResponse(Long salarySlipId,Long payrollId,Long staffId,Integer month,Integer year,String salarySlipUrl,String sentEmailStatus,OffsetDateTime generatedAt){}

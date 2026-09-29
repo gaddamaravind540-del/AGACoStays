@@ -1,0 +1,1 @@
+package com.agacostays.payroll.client; import org.springframework.stereotype.Component; @Component public class NotificationServiceClient{public void sendSalarySlipEmail(Long staffId,String url,String email){}}

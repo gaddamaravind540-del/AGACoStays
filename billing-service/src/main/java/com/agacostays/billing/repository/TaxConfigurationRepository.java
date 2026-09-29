@@ -1,0 +1,1 @@
+package com.agacostays.billing.repository; import com.agacostays.billing.entity.TaxConfiguration;import org.springframework.data.jpa.repository.JpaRepository;import java.util.Optional; public interface TaxConfigurationRepository extends JpaRepository<TaxConfiguration,Long>{Optional<TaxConfiguration> findByBranchIdAndActiveTrue(Long branchId);}

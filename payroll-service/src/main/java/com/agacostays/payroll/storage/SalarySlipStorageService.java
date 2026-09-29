@@ -1,0 +1,1 @@
+package com.agacostays.payroll.storage; import com.agacostays.payroll.entity.Payroll; public interface SalarySlipStorageService{String store(Payroll p,String key);byte[] read(String key);}

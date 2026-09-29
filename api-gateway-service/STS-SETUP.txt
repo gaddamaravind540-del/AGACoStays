@@ -1,0 +1,22 @@
+AGA CoStays API Gateway Service — Spring Tool Suite setup
+
+1. Extract api-gateway-service.zip.
+2. STS -> File -> Import -> Maven -> Existing Maven Projects.
+3. Select the extracted api-gateway-service folder.
+4. Right-click the project -> Maven -> Update Project.
+5. Configure the values in src/main/resources/application.properties or environment variables.
+6. Start Redis:
+   docker compose up -d redis
+7. Start the downstream services.
+8. Run:
+   com.agacostays.gateway.ApiGatewayApplication
+9. Test:
+   GET http://localhost:8080/api/gateway/health
+10. Test a downstream route:
+   GET http://localhost:8080/api/cities
+
+Important:
+- This gateway uses Spring Cloud Gateway WebFlux and Netty.
+- Do not convert it to a normal Spring MVC/Tomcat WAR.
+- The Auth Service must sign JWTs with the same JWT_SECRET used by the gateway.
+- Downstream services must continue to perform their own authorization checks.

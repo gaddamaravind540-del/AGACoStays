@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.time.OffsetDateTime; public record StaffBankAccountResponse(Long bankAccountId,Long staffId,String accountHolderName,String bankName,String maskedAccountNumber,String ifscCode,String branchName,String accountType,String status,OffsetDateTime updatedAt){}

@@ -1,0 +1,2 @@
+package com.agacostays.payment.constants;
+public final class KafkaTopicConstants { private KafkaTopicConstants(){} public static final String PAYMENT_SUCCESS="payment.success"; public static final String PAYMENT_FAILED="payment.failed"; public static final String REFUND_PROCESSED="payment.refund.processed"; public static final String REFUND_FAILED="payment.refund.failed"; public static final String WEBHOOK_RECEIVED="payment.webhook.received"; }

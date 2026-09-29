@@ -1,0 +1,11 @@
+SPRING TOOL SUITE SETUP
+
+1. File -> Import -> Existing Maven Projects.
+2. Select the notification-service folder.
+3. Wait for dependency resolution.
+4. Open NotificationServiceApplication.java.
+5. Run As -> Spring Boot App.
+6. The default application port is 8090.
+7. PostgreSQL default is localhost:5435 / notification_db.
+
+For a clean local demo, keep Kafka disabled or point it at your Kafka broker. The email and SMS providers are disabled by default and can be enabled through environment variables.

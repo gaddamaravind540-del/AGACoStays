@@ -1,0 +1,1 @@
+package com.agacostays.billing.util;import java.time.OffsetDateTime;public final class DateRangeUtil{private DateRangeUtil(){}public static boolean sameDay(OffsetDateTime a,OffsetDateTime b){return a!=null&&b!=null&&a.toLocalDate().equals(b.toLocalDate());}}

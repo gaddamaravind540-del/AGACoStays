@@ -1,0 +1,14 @@
+AGA CoStays Payroll Service — STS setup
+
+1. Extract payroll-service-complete-properties.zip.
+2. STS -> File -> Import -> Existing Maven Projects -> select payroll-service.
+3. PostgreSQL: CREATE DATABASE payroll_db;
+4. Update src/main/resources/application.properties with your DB username/password.
+5. Start Kafka on localhost:9092 for event publishing/consumption.
+6. Run PayrollServiceApplication.java -> Run As -> Spring Boot App.
+7. Swagger: http://localhost:8093/swagger-ui.html
+
+Project: payroll-service
+Package: com.agacostays.payroll
+Port: 8093
+Database: payroll_db

@@ -1,0 +1,23 @@
+AGA CoStays Branch Service — Spring Tool Suite
+
+1. Extract branch-service-complete-properties.zip.
+2. STS -> File -> Import -> Maven -> Existing Maven Projects.
+3. Select the extracted branch-service folder.
+4. Create PostgreSQL database: branch_db.
+5. Open src/main/resources/application.properties.
+6. Keep the default local port at 8083 unless your team has assigned a different port.
+7. Use the same JWT_SECRET as Auth Service.
+8. Start PostgreSQL and Kafka.
+9. Run:
+   com.agacostays.branch.BranchServiceApplication
+10. Test:
+   GET http://localhost:8083/actuator/health
+11. Public branch APIs can be tested without JWT for GET operations.
+12. Root-admin and manager operations require a JWT.
+
+Uploaded branch photos are stored under the configured local storage directory by default:
+    uploads/branches/
+and are exposed through:
+    http://localhost:8083/files/branches/<file>
+
+Production cloud storage is an extension point; CloudStorageServiceImpl is deliberately a provider placeholder.

@@ -1,0 +1,1 @@
+package com.agacostays.payroll.controller; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertNotNull; class PayrollControllerTest{@Test void load(){assertNotNull(PayrollController.class);}}

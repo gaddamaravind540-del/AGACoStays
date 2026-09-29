@@ -1,0 +1,1 @@
+package com.agacostays.billing.security;import org.springframework.stereotype.Component;@Component public class RoleBasedAccessService{public boolean isStaff(String r){return "MANAGER".equals(r)||"RECEPTIONIST".equals(r)||"ROOT_ADMIN".equals(r)||"SYSTEM".equals(r);}}

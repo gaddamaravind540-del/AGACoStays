@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_bills_branch ON bills(branch_id);CREATE INDEX IF NOT EXISTS idx_bills_customer ON bills(customer_id);CREATE INDEX IF NOT EXISTS idx_bills_payment_status ON bills(payment_status);CREATE INDEX IF NOT EXISTS idx_bill_charges_bill ON bill_charges(bill_id);CREATE INDEX IF NOT EXISTS idx_invoices_bill ON invoices(bill_id);

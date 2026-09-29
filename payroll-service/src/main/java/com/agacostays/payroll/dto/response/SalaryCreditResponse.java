@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.math.BigDecimal; public record SalaryCreditResponse(Long payrollId,Long staffId,BigDecimal amount,String paymentStatus,String transactionId,String message){}

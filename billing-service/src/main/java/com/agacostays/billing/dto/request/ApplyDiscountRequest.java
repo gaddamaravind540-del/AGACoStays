@@ -1,0 +1,1 @@
+package com.agacostays.billing.dto.request; import com.agacostays.billing.enums.DiscountType;import jakarta.validation.constraints.DecimalMin;import jakarta.validation.constraints.NotNull;import java.math.BigDecimal; public record ApplyDiscountRequest(@NotNull DiscountType discountType,@NotNull @DecimalMin("0.00") BigDecimal value,String reason){}

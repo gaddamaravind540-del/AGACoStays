@@ -1,0 +1,1 @@
+-- Payment data is created at runtime; there are no default payment records.

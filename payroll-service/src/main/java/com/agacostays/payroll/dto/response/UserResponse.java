@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; public record UserResponse(Long userId,String fullName,String email,String role,Long branchId,Boolean active){}

@@ -1,0 +1,1 @@
+package com.agacostays.billing.service;import com.agacostays.billing.dto.response.InvoiceResponse;public interface InvoiceService{InvoiceResponse generate(Long billId);InvoiceResponse get(Long invoiceId);byte[] download(Long invoiceId);}

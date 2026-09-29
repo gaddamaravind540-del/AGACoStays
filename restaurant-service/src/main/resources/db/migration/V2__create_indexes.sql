@@ -1,0 +1,9 @@
+CREATE INDEX idx_menu_branch ON restaurant_menu(branch_id);
+CREATE INDEX idx_menu_restaurant ON restaurant_menu(restaurant_id);
+CREATE INDEX idx_menu_photo_item ON restaurant_menu_photos(menu_item_id);
+CREATE INDEX idx_order_branch ON restaurant_orders(branch_id);
+CREATE INDEX idx_order_booking ON restaurant_orders(booking_id);
+CREATE INDEX idx_order_customer ON restaurant_orders(customer_id);
+CREATE INDEX idx_order_item_order ON restaurant_order_items(order_id);
+CREATE INDEX idx_feedback_restaurant ON restaurant_feedback(restaurant_id);
+CREATE INDEX idx_assignment_order ON restaurant_order_assignment(order_id);

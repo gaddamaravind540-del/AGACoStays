@@ -1,0 +1,1 @@
+package com.agacostays.billing.repository; import com.agacostays.billing.entity.Invoice;import org.springframework.data.jpa.repository.JpaRepository;import java.util.Optional; public interface InvoiceRepository extends JpaRepository<Invoice,Long>{Optional<Invoice> findByBillId(Long billId);}

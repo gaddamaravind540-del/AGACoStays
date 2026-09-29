@@ -1,0 +1,1 @@
+package com.agacostays.payroll.mapper; import org.springframework.stereotype.Component; @Component public class PayrollPaymentBatchMapper{}

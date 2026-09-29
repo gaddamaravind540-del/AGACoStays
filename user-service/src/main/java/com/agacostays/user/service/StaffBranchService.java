@@ -1,0 +1,2 @@
+package com.agacostays.user.service;
+import com.agacostays.user.dto.request.*; import com.agacostays.user.dto.response.*; public interface StaffBranchService { StaffBranchMappingResponse assign(Long staffId,AssignStaffToBranchRequest r,Long actor); StaffBranchMappingResponse transfer(Long staffId,TransferBranchRequest r,Long actor); }

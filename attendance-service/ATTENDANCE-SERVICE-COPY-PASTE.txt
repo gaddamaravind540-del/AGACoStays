@@ -1,0 +1,24 @@
+AGA CoStays Attendance Service — STS SETUP
+
+1. Extract attendance-service-complete-properties.zip.
+2. In Spring Tool Suite:
+   File -> Import -> Existing Maven Projects
+   Select the attendance-service folder.
+3. Create PostgreSQL database:
+   CREATE DATABASE attendance_db;
+4. Open:
+   src/main/resources/application.properties
+   Change PostgreSQL username/password if needed.
+5. Start Kafka on localhost:9092 if event publishing is enabled.
+6. Run:
+   AttendanceServiceApplication.java
+   -> Run As -> Spring Boot App
+7. Swagger:
+   http://localhost:8092/swagger-ui.html
+
+Project:
+Application: attendance-service
+Package: com.agacostays.attendance
+Main class: AttendanceServiceApplication
+Port: 8092
+Database: attendance_db

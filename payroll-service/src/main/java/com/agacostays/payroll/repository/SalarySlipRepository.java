@@ -1,0 +1,1 @@
+package com.agacostays.payroll.repository; import com.agacostays.payroll.entity.SalarySlip; import org.springframework.data.jpa.repository.JpaRepository; import java.util.Optional; public interface SalarySlipRepository extends JpaRepository<SalarySlip,Long>{Optional<SalarySlip> findByPayrollId(Long payrollId);}

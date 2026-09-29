@@ -1,0 +1,1 @@
+package com.agacostays.payroll.mapper; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertNotNull; class PayrollMapperTest{@Test void load(){assertNotNull(PayrollMapper.class);}}

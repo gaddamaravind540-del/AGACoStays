@@ -1,0 +1,2 @@
+package com.agacostays.user.service;
+import com.agacostays.user.dto.response.StaffBranchMappingResponse; import java.util.List; public interface StaffService { List<StaffBranchMappingResponse> getMyBranchMappings(Long userId); }

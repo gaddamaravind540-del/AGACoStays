@@ -1,0 +1,3 @@
+#!/bin/sh
+# Maven Wrapper placeholder. Generate the official wrapper with `mvn -N wrapper:wrapper` in an environment with Maven installed.
+exec mvn "$@"

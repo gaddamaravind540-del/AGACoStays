@@ -1,0 +1,2764 @@
+
+===== .dockerignore =====
+target/
+.git/
+.idea/
+
+
+===== Dockerfile =====
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY target/restaurant-service-0.0.1-SNAPSHOT.jar app.jar
+EXPOSE 8087
+ENTRYPOINT ["java","-jar","app.jar"]
+
+
+===== README.md =====
+# AGA CoStays Restaurant Service
+
+Base package: `com.agacostays.restaurant`
+Database: `restaurant_db`
+Port: `8087`
+
+Configuration uses `application.properties`, `application-dev.properties` and `application-prod.properties`.
+
+Responsibilities:
+- Restaurant
+- Menu
+- Dish photos
+- Food orders
+- Kitchen workflow
+- Serving workflow
+- Chef/serving assignment
+- Restaurant feedback
+
+Main endpoint families:
+GET /api/hotel-branches/{branchId}/restaurant
+POST /api/restaurant-admin/hotel-branches/{branchId}/menu
+GET /api/hotel-branches/{branchId}/restaurant/menu
+POST /api/restaurant/orders
+GET /api/restaurant/orders/{orderId}
+GET /api/restaurant/orders/my-orders
+PUT /api/restaurant-admin/orders/{orderId}/accept
+PUT /api/restaurant-admin/orders/{orderId}/assign-chef
+PUT /api/kitchen/orders/{orderId}/preparing
+PUT /api/kitchen/orders/{orderId}/ready
+PUT /api/serving/orders/{orderId}/picked-up
+PUT /api/serving/orders/{orderId}/delivered
+
+Both source-document food-order routes are supported: `/api/hotel-branches/{branchId}/restaurant/orders` and `/api/restaurant/orders?branchId=...`.
+
+
+===== pom.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.agacostays</groupId>
+    <artifactId>restaurant-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>restaurant-service</name>
+    <description>AGA CoStays Restaurant Microservice</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <jjwt.version>0.13.0</jjwt.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+
+===== src/main/java/com/agacostays/restaurant/RestaurantServiceApplication.java =====
+package com.agacostays.restaurant;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableFeignClients
+@EnableScheduling
+public class RestaurantServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(RestaurantServiceApplication.class, args);
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/audit/AuditLogRequest.java =====
+package com.agacostays.restaurant.audit;
+import lombok.*;
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class AuditLogRequest {
+    private Long userId; private String roleName; private String moduleName; private String action; private String description;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/audit/RestaurantAuditHelper.java =====
+package com.agacostays.restaurant.audit;
+import org.springframework.stereotype.Component;
+@Component
+public class RestaurantAuditHelper {
+    public AuditLogRequest request(Long userId,String role,String action,String description){
+        return AuditLogRequest.builder().userId(userId).roleName(role).moduleName("RESTAURANT").action(action).description(description).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/client/BillingServiceClient.java =====
+package com.agacostays.restaurant.client;
+
+import com.agacostays.restaurant.dto.response.BillingResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name="billing-service", url="${services.billing.url}")
+public interface BillingServiceClient {
+    @PostMapping("/api/billing/restaurant-orders/{orderId}")
+    BillingResponse addOrderToBill(@PathVariable Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/client/BookingServiceClient.java =====
+package com.agacostays.restaurant.client;
+
+import com.agacostays.restaurant.dto.response.BookingResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name="booking-service", url="${services.booking.url}")
+public interface BookingServiceClient {
+    @GetMapping("/api/bookings/{bookingId}")
+    BookingResponse getBooking(@PathVariable Long bookingId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/client/NotificationServiceClient.java =====
+package com.agacostays.restaurant.client;
+import org.springframework.cloud.openfeign.FeignClient;
+@FeignClient(name="notification-service", url="${services.notification.url}")
+public interface NotificationServiceClient {}
+
+
+===== src/main/java/com/agacostays/restaurant/client/PaymentServiceClient.java =====
+package com.agacostays.restaurant.client;
+
+import com.agacostays.restaurant.dto.response.PaymentStatusResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name="payment-service", url="${services.payment.url}")
+public interface PaymentServiceClient {
+    @GetMapping("/api/payments/restaurant-order/{orderId}/status")
+    PaymentStatusResponse getStatus(@PathVariable Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/client/UserServiceClient.java =====
+package com.agacostays.restaurant.client;
+
+import com.agacostays.restaurant.dto.response.UserResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name="user-service", url="${services.user.url}")
+public interface UserServiceClient {
+    @GetMapping("/api/users/{userId}")
+    UserResponse getUser(@PathVariable Long userId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/config/AppConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class AppConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/FeignClientConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class FeignClientConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/JpaAuditingConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class JpaAuditingConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/KafkaConsumerConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaConsumerConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/KafkaProducerConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaProducerConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/KafkaTopicConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaTopicConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/config/OpenApiConfig.java =====
+package com.agacostays.restaurant.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class OpenApiConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/constants/HeaderConstants.java =====
+package com.agacostays.restaurant.constants;
+public final class HeaderConstants {
+    private HeaderConstants() {}
+    public static final String TRACE_ID = "X-Trace-Id";
+    public static final String CORRELATION_ID = "X-Correlation-Id";
+}
+
+
+===== src/main/java/com/agacostays/restaurant/constants/KafkaTopicConstants.java =====
+package com.agacostays.restaurant.constants;
+public final class KafkaTopicConstants {
+    private KafkaTopicConstants() {}
+    public static final String FOOD_ORDER_PLACED = "food-order-placed";
+    public static final String FOOD_ORDER_ACCEPTED = "food-order-accepted";
+    public static final String FOOD_ORDER_REJECTED = "food-order-rejected";
+    public static final String FOOD_READY = "food-ready";
+    public static final String FOOD_DELIVERED = "food-delivered";
+    public static final String FOOD_ORDER_CANCELLED = "food-order-cancelled";
+}
+
+
+===== src/main/java/com/agacostays/restaurant/constants/RestaurantConstants.java =====
+package com.agacostays.restaurant.constants;
+public final class RestaurantConstants {
+    private RestaurantConstants() {}
+    public static final int MAX_RATING = 5;
+    public static final int MIN_RATING = 1;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/consumer/BookingCancelledEventConsumer.java =====
+package com.agacostays.restaurant.consumer;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+@Component
+public class BookingCancelledEventConsumer.java {
+    @KafkaListener(topics="booking-cancelled", groupId="restaurant-service")
+    public void handle(String message) {
+        // Process the agreed upstream event contract idempotently.
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/consumer/PaymentFailedEventConsumer.java =====
+package com.agacostays.restaurant.consumer;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+@Component
+public class PaymentFailedEventConsumer.java {
+    @KafkaListener(topics="payment-failed", groupId="restaurant-service")
+    public void handle(String message) {
+        // Process the agreed upstream event contract idempotently.
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/consumer/PaymentSuccessEventConsumer.java =====
+package com.agacostays.restaurant.consumer;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+@Component
+public class PaymentSuccessEventConsumer.java {
+    @KafkaListener(topics="payment-success", groupId="restaurant-service")
+    public void handle(String message) {
+        // Process the agreed upstream event contract idempotently.
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/DishPhotoController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.request.DishPhotoRequest;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.DishPhotoService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class DishPhotoController {
+    private final DishPhotoService service; public DishPhotoController(DishPhotoService service){this.service=service;}
+
+    @PostMapping("/restaurant-admin/menu/{menuItemId}/photos")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<DishPhotoResponse>> add(@PathVariable Long menuItemId,@RequestParam Long branchId,@Valid @RequestBody DishPhotoRequest req){
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Dish photo added",service.add(branchId,menuItemId,req)));
+    }
+
+    @GetMapping("/hotel-branches/{branchId}/restaurant/menu/{menuItemId}/photos")
+    public ResponseEntity<ApiResponse<java.util.List<DishPhotoResponse>>> list(@PathVariable Long branchId,@PathVariable Long menuItemId){
+        return ResponseEntity.ok(ApiResponse.success("Dish photos fetched",service.list(menuItemId)));
+    }
+
+    @DeleteMapping("/restaurant-admin/menu/photos/{photoId}")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long photoId){
+        service.delete(photoId); return ResponseEntity.ok(ApiResponse.success("Dish photo deleted",null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/FoodOrderController.java =====
+package com.agacostays.restaurant.controller;
+
+import com.agacostays.restaurant.dto.request.CreateFoodOrderRequest;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.enums.FoodOrderStatus;
+import com.agacostays.restaurant.service.FoodOrderService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class FoodOrderController {
+
+    private final FoodOrderService service;
+
+    public FoodOrderController(FoodOrderService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/hotel-branches/{branchId}/restaurant/orders")
+    @PreAuthorize("hasAnyRole('CUSTOMER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<FoodOrderResponse>> createBranchOrder(
+            @PathVariable Long branchId,
+            @Valid @RequestBody CreateFoodOrderRequest req) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Food order placed", service.create(branchId, req)));
+    }
+
+    @PostMapping("/restaurant/orders")
+    @PreAuthorize("hasAnyRole('CUSTOMER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<FoodOrderResponse>> createOrder(
+            @RequestParam Long branchId,
+            @Valid @RequestBody CreateFoodOrderRequest req) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Food order placed", service.create(branchId, req)));
+    }
+
+    @GetMapping("/restaurant/orders/{orderId}")
+    public ResponseEntity<ApiResponse<FoodOrderResponse>> get(@PathVariable Long orderId) {
+        return ResponseEntity.ok(ApiResponse.success("Food order fetched", service.get(orderId)));
+    }
+
+    @GetMapping("/restaurant/orders/my-orders")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<java.util.List<FoodOrderResponse>>> myOrders() {
+        return ResponseEntity.ok(ApiResponse.success("Orders fetched", service.myOrders()));
+    }
+
+    @PutMapping("/restaurant-admin/orders/{orderId}/accept")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<FoodOrderResponse>> accept(@PathVariable Long orderId) {
+        return ResponseEntity.ok(ApiResponse.success("Order accepted",
+                service.updateStatus(orderId, FoodOrderStatus.ACCEPTED)));
+    }
+
+    @PutMapping("/restaurant-admin/orders/{orderId}/reject")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<FoodOrderResponse>> reject(@PathVariable Long orderId) {
+        return ResponseEntity.ok(ApiResponse.success("Order rejected",
+                service.updateStatus(orderId, FoodOrderStatus.REJECTED)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/KitchenController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.KitchenService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/kitchen/orders")
+public class KitchenController {
+    private final KitchenService service; public KitchenController(KitchenService service){this.service=service;}
+    @PutMapping("/{orderId}/preparing") @PreAuthorize("hasRole('CHEF')")
+    public ResponseEntity<ApiResponse<KitchenOrderResponse>> preparing(@PathVariable Long orderId){
+        return ResponseEntity.ok(ApiResponse.success("Order marked preparing",service.preparing(orderId)));
+    }
+    @PutMapping("/{orderId}/ready") @PreAuthorize("hasRole('CHEF')")
+    public ResponseEntity<ApiResponse<KitchenOrderResponse>> ready(@PathVariable Long orderId){
+        return ResponseEntity.ok(ApiResponse.success("Order marked ready",service.ready(orderId)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/MenuController.java =====
+package com.agacostays.restaurant.controller;
+
+import com.agacostays.restaurant.dto.request.*;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.MenuService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class MenuController {
+    private final MenuService service;
+    public MenuController(MenuService service){this.service=service;}
+
+    @PostMapping("/restaurant-admin/hotel-branches/{branchId}/menu")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<MenuItemResponse>> create(@PathVariable Long branchId,@Valid @RequestBody CreateMenuItemRequest req){
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Menu item created",service.create(branchId,req)));
+    }
+
+    @GetMapping("/hotel-branches/{branchId}/restaurant/menu")
+    public ResponseEntity<ApiResponse<java.util.List<MenuItemResponse>>> list(@PathVariable Long branchId, MenuSearchRequest req){
+        return ResponseEntity.ok(ApiResponse.success("Menu fetched",service.list(branchId,req)));
+    }
+
+    @GetMapping("/hotel-branches/{branchId}/restaurant/menu/{menuItemId}")
+    public ResponseEntity<ApiResponse<MenuItemResponse>> get(@PathVariable Long branchId,@PathVariable Long menuItemId){
+        return ResponseEntity.ok(ApiResponse.success("Menu item fetched",service.get(branchId,menuItemId)));
+    }
+
+    @PutMapping("/restaurant-admin/menu/{menuItemId}")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<MenuItemResponse>> update(@PathVariable Long menuItemId,@Valid @RequestBody UpdateMenuItemRequest req){
+        return ResponseEntity.ok(ApiResponse.success("Menu item updated",service.update(menuItemId,req)));
+    }
+
+    @DeleteMapping("/restaurant-admin/hotel-branches/{branchId}/restaurant/menu/{menuItemId}")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long branchId,@PathVariable Long menuItemId){
+        service.delete(menuItemId); return ResponseEntity.ok(ApiResponse.success("Menu item deleted",null));
+    }
+
+    @PutMapping("/restaurant-admin/menu/{menuItemId}/status")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<MenuItemResponse>> availability(@PathVariable Long menuItemId,@RequestParam boolean available){
+        return ResponseEntity.ok(ApiResponse.success("Availability updated",service.updateAvailability(menuItemId,available)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/RestaurantAssignmentController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.request.*;
+import com.agacostays.restaurant.dto.response.ApiResponse;
+import com.agacostays.restaurant.service.RestaurantOrderAssignmentService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/restaurant-admin/orders")
+public class RestaurantAssignmentController {
+    private final RestaurantOrderAssignmentService service; public RestaurantAssignmentController(RestaurantOrderAssignmentService service){this.service=service;}
+    @PutMapping("/{orderId}/assign-chef") @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> chef(@PathVariable Long orderId,@Valid @RequestBody AssignChefRequest req){
+        service.assignChef(orderId,req.getChefId()); return ResponseEntity.ok(ApiResponse.success("Chef assigned",null));
+    }
+    @PutMapping("/{orderId}/assign-serving-staff") @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> staff(@PathVariable Long orderId,@Valid @RequestBody AssignServingStaffRequest req){
+        service.assignServingStaff(orderId,req.getServingStaffId()); return ResponseEntity.ok(ApiResponse.success("Serving staff assigned",null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/RestaurantController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.request.RestaurantRequest;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.RestaurantService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class RestaurantController {
+    private final RestaurantService service;
+    public RestaurantController(RestaurantService service){this.service=service;}
+
+    @GetMapping("/hotel-branches/{branchId}/restaurant")
+    public ResponseEntity<ApiResponse<RestaurantResponse>> get(@PathVariable Long branchId){
+        return ResponseEntity.ok(ApiResponse.success("Restaurant fetched", service.get(branchId)));
+    }
+
+    @PutMapping("/restaurant-admin/hotel-branches/{branchId}/restaurant")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<RestaurantResponse>> update(@PathVariable Long branchId,@Valid @RequestBody RestaurantRequest request){
+        return ResponseEntity.ok(ApiResponse.success("Restaurant updated",service.update(branchId,request)));
+    }
+
+    @PostMapping("/manager/hotel-branches/{branchId}/restaurant")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<ApiResponse<RestaurantResponse>> create(@PathVariable Long branchId,@Valid @RequestBody RestaurantRequest request){
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Restaurant created",service.create(branchId,request)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/RestaurantFeedbackController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.RestaurantFeedbackService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class RestaurantFeedbackController {
+    private final RestaurantFeedbackService service; public RestaurantFeedbackController(RestaurantFeedbackService service){this.service=service;}
+    @PostMapping("/restaurant/feedback") @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<RestaurantFeedbackResponse>> create(@RequestParam Long branchId,@Valid @RequestBody RestaurantFeedbackRequest req){
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Restaurant feedback submitted",service.create(branchId,req)));
+    }
+    @GetMapping("/restaurant-admin/hotel-branches/{branchId}/feedback") @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.List<RestaurantFeedbackResponse>>> list(@PathVariable Long branchId){
+        return ResponseEntity.ok(ApiResponse.success("Restaurant feedback fetched",service.byBranch(branchId)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/controller/ServingController.java =====
+package com.agacostays.restaurant.controller;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.service.ServingService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/serving/orders")
+public class ServingController {
+    private final ServingService service; public ServingController(ServingService service){this.service=service;}
+    @PutMapping("/{orderId}/picked-up") @PreAuthorize("hasRole('SERVING_STAFF')")
+    public ResponseEntity<ApiResponse<ServingOrderResponse>> picked(@PathVariable Long orderId){
+        return ResponseEntity.ok(ApiResponse.success("Order picked up",service.pickedUp(orderId)));
+    }
+    @PutMapping("/{orderId}/delivered") @PreAuthorize("hasRole('SERVING_STAFF')")
+    public ResponseEntity<ApiResponse<ServingOrderResponse>> delivered(@PathVariable Long orderId){
+        return ResponseEntity.ok(ApiResponse.success("Order delivered",service.delivered(orderId)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/AssignChefRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class AssignChefRequest {
+    @NotNull private Long chefId;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/AssignServingStaffRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class AssignServingStaffRequest {
+    @NotNull private Long servingStaffId;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/CreateFoodOrderRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import com.agacostays.restaurant.enums.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class CreateFoodOrderRequest {
+    @NotNull private Long bookingId;
+    private Long roomId;
+    @NotEmpty @Valid private List<OrderItemRequest> items;
+    @NotNull private DeliveryType deliveryType;
+    @NotNull private RestaurantPaymentOption paymentMode;
+
+    @Data
+    public static class OrderItemRequest {
+        @NotNull private Long menuItemId;
+        @NotNull @Min(1) private Integer quantity;
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/CreateMenuItemRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import com.agacostays.restaurant.enums.*;
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+import java.math.BigDecimal;
+
+@Data
+public class CreateMenuItemRequest {
+    @NotBlank private String itemName;
+    @NotNull private MenuCategory category;
+    private String description;
+    @NotNull @DecimalMin("0.01") private BigDecimal price;
+    private boolean availability = true;
+    @NotNull private FoodType foodType;
+    @Min(0) private Integer preparationTimeMinutes;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/DishPhotoRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class DishPhotoRequest {
+    @NotBlank private String photoUrl;
+    private String caption;
+    private boolean primaryPhoto;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/MenuSearchRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import com.agacostays.restaurant.enums.*;
+import lombok.Data;
+
+@Data
+public class MenuSearchRequest {
+    private String itemName;
+    private MenuCategory category;
+    private FoodType foodType;
+    private Boolean available;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/RestaurantFeedbackRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class RestaurantFeedbackRequest {
+    @NotNull private Long orderId;
+    @NotNull @Min(1) @Max(5) private Integer rating;
+    private String comments;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/RestaurantRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+import java.time.LocalTime;
+
+@Data
+public class RestaurantRequest {
+    @NotBlank private String restaurantName;
+    private String description;
+    private LocalTime openingTime;
+    private LocalTime closingTime;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/UpdateFoodOrderStatusRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import com.agacostays.restaurant.enums.FoodOrderStatus;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class UpdateFoodOrderStatusRequest {
+    @NotNull private FoodOrderStatus status;
+    private String remarks;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/request/UpdateMenuItemRequest.java =====
+package com.agacostays.restaurant.dto.request;
+
+import com.agacostays.restaurant.enums.*;
+import jakarta.validation.constraints.DecimalMin;
+import lombok.Data;
+
+import java.math.BigDecimal;
+
+@Data
+public class UpdateMenuItemRequest {
+    private String itemName;
+    private MenuCategory category;
+    private String description;
+    @DecimalMin("0.01") private BigDecimal price;
+    private Boolean availability;
+    private FoodType foodType;
+    private Integer preparationTimeMinutes;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/ApiResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import lombok.*;
+
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class ApiResponse<T> {
+    private String status;
+    private String message;
+    private T data;
+
+    public static <T> ApiResponse<T> success(String message, T data) {
+        return ApiResponse.<T>builder().status("success").message(message).data(data).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/BillingResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record BillingResponse(Long orderId, String status, java.math.BigDecimal totalAmount) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/BookingResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record BookingResponse(Long bookingId, Long customerId, Long roomId, String status) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/DishPhotoResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import lombok.*;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class DishPhotoResponse {
+    private Long photoId;
+    private Long menuItemId;
+    private String photoUrl;
+    private String caption;
+    private boolean primaryPhoto;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/FoodOrderItemResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class FoodOrderItemResponse {
+    private Long orderItemId;
+    private Long menuItemId;
+    private String itemName;
+    private Integer quantity;
+    private BigDecimal unitPrice;
+    private BigDecimal lineTotal;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/FoodOrderResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import com.agacostays.restaurant.enums.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class FoodOrderResponse {
+    private Long orderId;
+    private Long branchId;
+    private Long restaurantId;
+    private Long bookingId;
+    private Long roomId;
+    private Long customerId;
+    private BigDecimal totalAmount;
+    private FoodOrderStatus orderStatus;
+    private DeliveryType deliveryType;
+    private RestaurantPaymentOption paymentMode;
+    private OffsetDateTime createdAt;
+    private List<FoodOrderItemResponse> items;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/KitchenOrderResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record KitchenOrderResponse(Long orderId, com.agacostays.restaurant.enums.FoodOrderStatus status) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/MenuItemResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import com.agacostays.restaurant.enums.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class MenuItemResponse {
+    private Long menuItemId;
+    private Long branchId;
+    private Long restaurantId;
+    private String itemName;
+    private MenuCategory category;
+    private String description;
+    private BigDecimal price;
+    private boolean availability;
+    private FoodType foodType;
+    private Integer preparationTimeMinutes;
+    private MenuItemStatus status;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/PageResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.util.List;
+
+@Data @Builder
+public class PageResponse<T> {
+    private List<T> content;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/PaymentStatusResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record PaymentStatusResponse(Long orderId, String status) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/RestaurantFeedbackResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record RestaurantFeedbackResponse(Long feedbackId, Long orderId, Integer rating, String comments) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/RestaurantResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+import com.agacostays.restaurant.enums.RestaurantStatus;
+import lombok.*;
+
+import java.time.LocalTime;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantResponse {
+    private Long restaurantId;
+    private Long branchId;
+    private String restaurantName;
+    private String description;
+    private LocalTime openingTime;
+    private LocalTime closingTime;
+    private RestaurantStatus status;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/ServingOrderResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record ServingOrderResponse(Long orderId, com.agacostays.restaurant.enums.FoodOrderStatus status) {}
+
+
+===== src/main/java/com/agacostays/restaurant/dto/response/UserResponse.java =====
+package com.agacostays.restaurant.dto.response;
+
+public record UserResponse(Long userId, String fullName, String email) {}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/Restaurant.java =====
+package com.agacostays.restaurant.entity;
+
+import com.agacostays.restaurant.enums.RestaurantStatus;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurants", uniqueConstraints = @UniqueConstraint(
+        name = "uk_restaurant_branch", columnNames = "branch_id"))
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class Restaurant {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "restaurant_id")
+    private Long restaurantId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "restaurant_name", nullable = false)
+    private String restaurantName;
+
+    private String description;
+
+    @Column(name = "opening_time")
+    private LocalTime openingTime;
+
+    @Column(name = "closing_time")
+    private LocalTime closingTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private RestaurantStatus status;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now; updatedAt = now;
+    }
+    @PreUpdate void onUpdate() { updatedAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantFeedback.java =====
+package com.agacostays.restaurant.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_feedback")
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantFeedback {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "feedback_id")
+    private Long feedbackId;
+
+    @Column(name="branch_id", nullable=false) private Long branchId;
+    @Column(name="restaurant_id", nullable=false) private Long restaurantId;
+    @Column(name="order_id", nullable=false) private Long orderId;
+    @Column(name="customer_id", nullable=false) private Long customerId;
+    @Column(nullable=false) private Integer rating;
+    private String comments;
+
+    @Column(name="created_at", nullable=false)
+    private OffsetDateTime createdAt;
+
+    @PrePersist void onCreate() { createdAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantMenu.java =====
+package com.agacostays.restaurant.entity;
+
+import com.agacostays.restaurant.enums.*;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_menu",
+       indexes = {@Index(name="idx_menu_branch", columnList="branch_id"),
+                  @Index(name="idx_menu_restaurant", columnList="restaurant_id")})
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantMenu {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "menu_item_id")
+    private Long menuItemId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "restaurant_id", nullable = false)
+    private Long restaurantId;
+
+    @Column(name = "item_name", nullable = false)
+    private String itemName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private MenuCategory category;
+
+    private String description;
+
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal price;
+
+    @Column(nullable = false)
+    private boolean availability;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "food_type", nullable = false, length = 20)
+    private FoodType foodType;
+
+    @Column(name = "preparation_time_minutes")
+    private Integer preparationTimeMinutes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private MenuItemStatus status;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now; updatedAt = now;
+    }
+    @PreUpdate void onUpdate() { updatedAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantMenuPhoto.java =====
+package com.agacostays.restaurant.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_menu_photos",
+       indexes = {@Index(name="idx_menu_photo_item", columnList="menu_item_id")})
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantMenuPhoto {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "photo_id")
+    private Long photoId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "restaurant_id", nullable = false)
+    private Long restaurantId;
+
+    @Column(name = "menu_item_id", nullable = false)
+    private Long menuItemId;
+
+    @Column(name = "photo_url", nullable = false)
+    private String photoUrl;
+
+    private String caption;
+
+    @Column(name = "is_primary", nullable = false)
+    private boolean primaryPhoto;
+
+    @Column(name = "uploaded_by")
+    private Long uploadedBy;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now; updatedAt = now;
+    }
+    @PreUpdate void onUpdate() { updatedAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantOrder.java =====
+package com.agacostays.restaurant.entity;
+
+import com.agacostays.restaurant.enums.*;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_orders",
+       indexes = {@Index(name="idx_order_branch", columnList="branch_id"),
+                  @Index(name="idx_order_booking", columnList="booking_id"),
+                  @Index(name="idx_order_customer", columnList="customer_id")})
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantOrder {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "order_id")
+    private Long orderId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "restaurant_id", nullable = false)
+    private Long restaurantId;
+
+    @Column(name = "booking_id")
+    private Long bookingId;
+
+    @Column(name = "room_id")
+    private Long roomId;
+
+    @Column(name = "customer_id", nullable = false)
+    private Long customerId;
+
+    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_status", nullable = false, length = 30)
+    private FoodOrderStatus orderStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_type", nullable = false, length = 30)
+    private DeliveryType deliveryType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_mode", nullable = false, length = 30)
+    private RestaurantPaymentOption paymentMode;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now; updatedAt = now;
+    }
+    @PreUpdate void onUpdate() { updatedAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantOrderAssignment.java =====
+package com.agacostays.restaurant.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_order_assignment")
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantOrderAssignment {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name="assignment_id")
+    private Long assignmentId;
+
+    @Column(name="order_id", nullable=false) private Long orderId;
+    @Column(name="chef_id") private Long chefId;
+    @Column(name="serving_staff_id") private Long servingStaffId;
+
+    @Column(name="assigned_by") private Long assignedBy;
+    @Column(name="created_at", nullable=false) private OffsetDateTime createdAt;
+
+    @PrePersist void onCreate() { createdAt = OffsetDateTime.now(); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/entity/RestaurantOrderItem.java =====
+package com.agacostays.restaurant.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "restaurant_order_items",
+       indexes = {@Index(name="idx_order_item_order", columnList="order_id")})
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantOrderItem {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name="order_item_id")
+    private Long orderItemId;
+
+    @Column(name="order_id", nullable=false)
+    private Long orderId;
+
+    @Column(name="menu_item_id", nullable=false)
+    private Long menuItemId;
+
+    @Column(name="item_name", nullable=false)
+    private String itemName;
+
+    @Column(nullable=false)
+    private Integer quantity;
+
+    @Column(name="unit_price", nullable=false, precision=12, scale=2)
+    private BigDecimal unitPrice;
+
+    @Column(nullable=false, precision=12, scale=2)
+    private BigDecimal lineTotal;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/DeliveryType.java =====
+package com.agacostays.restaurant.enums;
+
+public enum DeliveryType {
+    ROOM_DELIVERY, RESTAURANT_DINING, TAKEAWAY
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/DishPhotoType.java =====
+package com.agacostays.restaurant.enums;
+
+public enum DishPhotoType {
+    GALLERY, PRIMARY
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/FoodOrderStatus.java =====
+package com.agacostays.restaurant.enums;
+
+public enum FoodOrderStatus {
+    PLACED, ACCEPTED, PREPARING, READY_FOR_DELIVERY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REJECTED
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/FoodType.java =====
+package com.agacostays.restaurant.enums;
+
+public enum FoodType {
+    VEG, NON_VEG, EGG, VEGAN
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/KitchenOrderStatus.java =====
+package com.agacostays.restaurant.enums;
+
+public enum KitchenOrderStatus {
+    PENDING, PREPARING, READY, CANCELLED
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/MenuCategory.java =====
+package com.agacostays.restaurant.enums;
+
+public enum MenuCategory {
+    STARTER, MAIN_COURSE, RICE, BIRYANI, BREADS, DESSERT, BEVERAGE, SNACKS, BREAKFAST, LUNCH, DINNER
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/MenuItemStatus.java =====
+package com.agacostays.restaurant.enums;
+
+public enum MenuItemStatus {
+    AVAILABLE, UNAVAILABLE, OUT_OF_STOCK, DELETED
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/RestaurantPaymentOption.java =====
+package com.agacostays.restaurant.enums;
+
+public enum RestaurantPaymentOption {
+    ONLINE, PAY_AT_CHECKOUT, CASH
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/RestaurantStatus.java =====
+package com.agacostays.restaurant.enums;
+
+public enum RestaurantStatus {
+    ACTIVE, INACTIVE, MAINTENANCE
+}
+
+
+===== src/main/java/com/agacostays/restaurant/enums/ServingOrderStatus.java =====
+package com.agacostays.restaurant.enums;
+
+public enum ServingOrderStatus {
+    PENDING, PICKED_UP, DELIVERED, CANCELLED
+}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodDeliveredEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodDeliveredEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodOrderAcceptedEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodOrderAcceptedEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodOrderCancelledEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodOrderCancelledEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodOrderPlacedEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodOrderPlacedEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodOrderRejectedEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodOrderRejectedEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/event/FoodReadyEvent.java =====
+package com.agacostays.restaurant.event;
+public record FoodReadyEvent(Long orderId, Long branchId, Long restaurantId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/AccessDeniedException.java =====
+package com.agacostays.restaurant.exception;
+public class AccessDeniedException extends RuntimeException {
+    public AccessDeniedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/BusinessRuleException.java =====
+package com.agacostays.restaurant.exception;
+public class BusinessRuleException extends RuntimeException {
+    public BusinessRuleException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/DuplicateResourceException.java =====
+package com.agacostays.restaurant.exception;
+public class DuplicateResourceException extends RuntimeException {
+    public DuplicateResourceException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/GlobalExceptionHandler.java =====
+package com.agacostays.restaurant.exception;
+
+import com.agacostays.restaurant.dto.response.ApiResponse;
+import org.springframework.http.*;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ApiResponse<String>> validation(MethodArgumentNotValidException ex) {
+        String m = ex.getBindingResult().getFieldErrors().stream().findFirst()
+                .map(e -> e.getField()+": "+e.getDefaultMessage()).orElse("Validation failed");
+        return ResponseEntity.badRequest().body(ApiResponse.success(m, null));
+    }
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ResponseEntity<ApiResponse<String>> notFound(ResourceNotFoundException ex) {
+        return ResponseEntity.status(404).body(ApiResponse.success(ex.getMessage(), null));
+    }
+    @ExceptionHandler({BusinessRuleException.class, InvalidStatusException.class, DuplicateResourceException.class})
+    ResponseEntity<ApiResponse<String>> conflict(RuntimeException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.success(ex.getMessage(), null));
+    }
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<ApiResponse<String>> generic(Exception ex) {
+        return ResponseEntity.status(500).body(ApiResponse.success("Internal restaurant service error", null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/InvalidStatusException.java =====
+package com.agacostays.restaurant.exception;
+public class InvalidStatusException extends RuntimeException {
+    public InvalidStatusException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/ResourceNotFoundException.java =====
+package com.agacostays.restaurant.exception;
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/exception/StorageException.java =====
+package com.agacostays.restaurant.exception;
+public class StorageException extends RuntimeException {
+    public StorageException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantFeedbackMapper.java =====
+package com.agacostays.restaurant.mapper;
+import com.agacostays.restaurant.dto.response.RestaurantFeedbackResponse;
+import com.agacostays.restaurant.entity.RestaurantFeedback;
+import org.springframework.stereotype.Component;
+@Component
+public class RestaurantFeedbackMapper {
+    public RestaurantFeedbackResponse toResponse(RestaurantFeedback f) {
+        return new RestaurantFeedbackResponse(f.getFeedbackId(), f.getOrderId(), f.getRating(), f.getComments());
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantMapper.java =====
+package com.agacostays.restaurant.mapper;
+
+import com.agacostays.restaurant.dto.response.RestaurantResponse;
+import com.agacostays.restaurant.entity.Restaurant;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantMapper {
+    public RestaurantResponse toResponse(Restaurant r) {
+        return RestaurantResponse.builder()
+                .restaurantId(r.getRestaurantId()).branchId(r.getBranchId())
+                .restaurantName(r.getRestaurantName()).description(r.getDescription())
+                .openingTime(r.getOpeningTime()).closingTime(r.getClosingTime())
+                .status(r.getStatus()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantMenuMapper.java =====
+package com.agacostays.restaurant.mapper;
+
+import com.agacostays.restaurant.dto.response.MenuItemResponse;
+import com.agacostays.restaurant.entity.RestaurantMenu;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantMenuMapper {
+    public MenuItemResponse toResponse(RestaurantMenu m) {
+        return MenuItemResponse.builder()
+                .menuItemId(m.getMenuItemId()).branchId(m.getBranchId()).restaurantId(m.getRestaurantId())
+                .itemName(m.getItemName()).category(m.getCategory()).description(m.getDescription())
+                .price(m.getPrice()).availability(m.isAvailability()).foodType(m.getFoodType())
+                .preparationTimeMinutes(m.getPreparationTimeMinutes()).status(m.getStatus()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantMenuPhotoMapper.java =====
+package com.agacostays.restaurant.mapper;
+
+import com.agacostays.restaurant.dto.response.DishPhotoResponse;
+import com.agacostays.restaurant.entity.RestaurantMenuPhoto;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantMenuPhotoMapper {
+    public DishPhotoResponse toResponse(RestaurantMenuPhoto p) {
+        return DishPhotoResponse.builder()
+                .photoId(p.getPhotoId()).menuItemId(p.getMenuItemId())
+                .photoUrl(p.getPhotoUrl()).caption(p.getCaption()).primaryPhoto(p.isPrimaryPhoto()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantOrderAssignmentMapper.java =====
+package com.agacostays.restaurant.mapper;
+import com.agacostays.restaurant.entity.RestaurantOrderAssignment;
+import org.springframework.stereotype.Component;
+@Component
+public class RestaurantOrderAssignmentMapper {
+    public String toDescription(RestaurantOrderAssignment a) {
+        return "chefId=" + a.getChefId() + ", servingStaffId=" + a.getServingStaffId();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantOrderItemMapper.java =====
+package com.agacostays.restaurant.mapper;
+import com.agacostays.restaurant.entity.RestaurantOrderItem;
+import com.agacostays.restaurant.dto.response.FoodOrderItemResponse;
+import org.springframework.stereotype.Component;
+@Component
+public class RestaurantOrderItemMapper {
+    public FoodOrderItemResponse toResponse(RestaurantOrderItem i) {
+        return FoodOrderItemResponse.builder().orderItemId(i.getOrderItemId()).menuItemId(i.getMenuItemId())
+            .itemName(i.getItemName()).quantity(i.getQuantity()).unitPrice(i.getUnitPrice()).lineTotal(i.getLineTotal()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/mapper/RestaurantOrderMapper.java =====
+package com.agacostays.restaurant.mapper;
+
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.entity.*;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantOrderMapper {
+    public FoodOrderResponse toResponse(RestaurantOrder o, java.util.List<FoodOrderItemResponse> items) {
+        return FoodOrderResponse.builder()
+                .orderId(o.getOrderId()).branchId(o.getBranchId()).restaurantId(o.getRestaurantId())
+                .bookingId(o.getBookingId()).roomId(o.getRoomId()).customerId(o.getCustomerId())
+                .totalAmount(o.getTotalAmount()).orderStatus(o.getOrderStatus())
+                .deliveryType(o.getDeliveryType()).paymentMode(o.getPaymentMode())
+                .createdAt(o.getCreatedAt()).items(items).build();
+    }
+    public FoodOrderItemResponse item(RestaurantOrderItem i) {
+        return FoodOrderItemResponse.builder()
+                .orderItemId(i.getOrderItemId()).menuItemId(i.getMenuItemId()).itemName(i.getItemName())
+                .quantity(i.getQuantity()).unitPrice(i.getUnitPrice()).lineTotal(i.getLineTotal()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/producer/RestaurantEventProducer.java =====
+package com.agacostays.restaurant.producer;
+
+import com.agacostays.restaurant.constants.KafkaTopicConstants;
+import com.agacostays.restaurant.entity.RestaurantOrder;
+import com.agacostays.restaurant.event.*;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantEventProducer {
+    private final KafkaTemplate<String,Object> kafka;
+
+    public RestaurantEventProducer(KafkaTemplate<String,Object> kafka) {
+        this.kafka = kafka;
+    }
+
+    public void placed(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_ORDER_PLACED, String.valueOf(o.getOrderId()),
+                new FoodOrderPlacedEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+
+    public void accepted(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_ORDER_ACCEPTED, String.valueOf(o.getOrderId()),
+                new FoodOrderAcceptedEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+
+    public void rejected(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_ORDER_REJECTED, String.valueOf(o.getOrderId()),
+                new FoodOrderRejectedEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+
+    public void ready(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_READY, String.valueOf(o.getOrderId()),
+                new FoodReadyEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+
+    public void delivered(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_DELIVERED, String.valueOf(o.getOrderId()),
+                new FoodDeliveredEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+
+    public void cancelled(RestaurantOrder o) {
+        kafka.send(KafkaTopicConstants.FOOD_ORDER_CANCELLED, String.valueOf(o.getOrderId()),
+                new FoodOrderCancelledEvent(o.getOrderId(), o.getBranchId(), o.getRestaurantId(), o.getBookingId(), o.getCustomerId()));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantFeedbackRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantFeedback;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantFeedbackRepository extends JpaRepository<RestaurantFeedback, Long> {
+    java.util.List<RestaurantFeedback> findByRestaurantIdOrderByCreatedAtDesc(Long restaurantId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantMenuPhotoRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantMenuPhoto;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantMenuPhotoRepository extends JpaRepository<RestaurantMenuPhoto, Long> {
+    java.util.List<RestaurantMenuPhoto> findByMenuItemId(Long menuItemId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantMenuRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantMenu;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantMenuRepository extends JpaRepository<RestaurantMenu, Long> {
+    java.util.List<RestaurantMenu> findByBranchIdAndStatusNot(Long branchId, com.agacostays.restaurant.enums.MenuItemStatus status);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantOrderAssignmentRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantOrderAssignment;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantOrderAssignmentRepository extends JpaRepository<RestaurantOrderAssignment, Long> {
+    java.util.Optional<RestaurantOrderAssignment> findByOrderId(Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantOrderItemRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantOrderItem;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantOrderItemRepository extends JpaRepository<RestaurantOrderItem, Long> {
+    java.util.List<RestaurantOrderItem> findByOrderId(Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantOrderRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.RestaurantOrder;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantOrderRepository extends JpaRepository<RestaurantOrder, Long> {
+    java.util.List<RestaurantOrder> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    java.util.List<RestaurantOrder> findByBranchIdOrderByCreatedAtDesc(Long branchId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/repository/RestaurantRepository.java =====
+package com.agacostays.restaurant.repository;
+
+import com.agacostays.restaurant.entity.Restaurant;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
+    java.util.Optional<Restaurant> findByBranchId(Long branchId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/AccessDeniedHandlerImpl.java =====
+package com.agacostays.restaurant.security;
+import jakarta.servlet.http.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+@Component
+public class AccessDeniedHandlerImpl implements AccessDeniedHandler {
+    @Override public void handle(HttpServletRequest req, HttpServletResponse res, AccessDeniedException e) throws IOException {
+        res.setStatus(403); res.setContentType("application/json");
+        res.getWriter().write("{\"status\":\"error\",\"message\":\"Access denied\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/AuthenticationEntryPointHandler.java =====
+package com.agacostays.restaurant.security;
+import jakarta.servlet.http.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+@Component
+public class AuthenticationEntryPointHandler implements AuthenticationEntryPoint {
+    @Override public void commence(HttpServletRequest req, HttpServletResponse res, AuthenticationException e) throws IOException {
+        res.setStatus(401); res.setContentType("application/json");
+        res.getWriter().write("{\"status\":\"error\",\"message\":\"Authentication required\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/BranchAccessValidator.java =====
+package com.agacostays.restaurant.security;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BranchAccessValidator {}
+
+
+===== src/main/java/com/agacostays/restaurant/security/CurrentUserProvider.java =====
+package com.agacostays.restaurant.security;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CurrentUserProvider {
+    public Long userId() {
+        return Long.valueOf(SecurityContextHolder.getContext().getAuthentication().getName());
+    }
+    public String role() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .findFirst().map(a -> a.getAuthority().replace("ROLE_","")).orElse("UNKNOWN");
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/JwtAuthenticationFilter.java =====
+package com.agacostays.restaurant.security;
+
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private final JwtTokenProvider provider;
+    public JwtAuthenticationFilter(JwtTokenProvider provider) { this.provider = provider; }
+
+    @Override protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+            throws ServletException, IOException {
+        String header = req.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
+            if (provider.valid(token)) {
+                var claims = provider.parse(token);
+                List<String> roles = new ArrayList<>();
+                Object c = claims.get("roles");
+                if (c instanceof Collection<?> col) col.forEach(v -> roles.add(String.valueOf(v)));
+                else if (c != null) roles.add(String.valueOf(c));
+                var authorities = roles.stream()
+                        .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                        .map(SimpleGrantedAuthority::new).collect(Collectors.toList());
+                var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), null, authorities);
+                auth.setDetails(claims);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        }
+        chain.doFilter(req, res);
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/JwtTokenProvider.java =====
+package com.agacostays.restaurant.security;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+
+@Component
+public class JwtTokenProvider {
+    private final SecretKey key;
+    public JwtTokenProvider(@Value("${security.jwt.secret}") String secret) {
+        key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+    public Claims parse(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+    }
+    public boolean valid(String token) {
+        try { parse(token); return true; } catch (Exception e) { return false; }
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/MethodSecurityConfig.java =====
+package com.agacostays.restaurant.security;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
+
+@Configuration
+public class MethodSecurityConfig {}
+
+
+===== src/main/java/com/agacostays/restaurant/security/RestaurantSecurityConfig.java =====
+package com.agacostays.restaurant.security;
+
+import org.springframework.context.annotation.*;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class RestaurantSecurityConfig {
+    @Bean
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            AuthenticationEntryPointHandler entryPoint,
+            AccessDeniedHandlerImpl denied) throws Exception {
+
+        http.csrf(c -> c.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(a -> a
+                .requestMatchers("/actuator/**").permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(denied))
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/security/RoleBasedAccessService.java =====
+package com.agacostays.restaurant.security;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RoleBasedAccessService {}
+
+
+===== src/main/java/com/agacostays/restaurant/service/DishPhotoService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.request.DishPhotoRequest;
+import com.agacostays.restaurant.dto.response.DishPhotoResponse;
+import java.util.List;
+
+public interface DishPhotoService {
+    DishPhotoResponse add(Long branchId, Long menuItemId, DishPhotoRequest request);
+    List<DishPhotoResponse> list(Long menuItemId);
+    void delete(Long photoId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/FoodOrderService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.request.CreateFoodOrderRequest;
+import com.agacostays.restaurant.dto.response.FoodOrderResponse;
+import com.agacostays.restaurant.enums.FoodOrderStatus;
+import java.util.List;
+
+public interface FoodOrderService {
+    FoodOrderResponse create(Long branchId, CreateFoodOrderRequest request);
+    FoodOrderResponse get(Long orderId);
+    List<FoodOrderResponse> myOrders();
+    FoodOrderResponse updateStatus(Long orderId, FoodOrderStatus status);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/KitchenService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.response.KitchenOrderResponse;
+
+public interface KitchenService {
+    KitchenOrderResponse preparing(Long orderId);
+    KitchenOrderResponse ready(Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/MenuService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.request.*;
+import com.agacostays.restaurant.dto.response.MenuItemResponse;
+import java.util.List;
+
+public interface MenuService {
+    MenuItemResponse create(Long branchId, CreateMenuItemRequest request);
+    MenuItemResponse get(Long branchId, Long menuItemId);
+    List<MenuItemResponse> list(Long branchId, MenuSearchRequest request);
+    MenuItemResponse update(Long menuItemId, UpdateMenuItemRequest request);
+    void delete(Long menuItemId);
+    MenuItemResponse updateAvailability(Long menuItemId, boolean availability);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/RestaurantFeedbackService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.restaurant.dto.response.RestaurantFeedbackResponse;
+import java.util.List;
+
+public interface RestaurantFeedbackService {
+    RestaurantFeedbackResponse create(Long branchId, RestaurantFeedbackRequest request);
+    List<RestaurantFeedbackResponse> byBranch(Long branchId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/RestaurantOrderAssignmentService.java =====
+package com.agacostays.restaurant.service;
+
+public interface RestaurantOrderAssignmentService {
+    void assignChef(Long orderId, Long chefId);
+    void assignServingStaff(Long orderId, Long servingStaffId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/RestaurantService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.request.RestaurantRequest;
+import com.agacostays.restaurant.dto.response.RestaurantResponse;
+
+public interface RestaurantService {
+    RestaurantResponse get(Long branchId);
+    RestaurantResponse create(Long branchId, RestaurantRequest request);
+    RestaurantResponse update(Long branchId, RestaurantRequest request);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/ServingService.java =====
+package com.agacostays.restaurant.service;
+
+import com.agacostays.restaurant.dto.response.ServingOrderResponse;
+
+public interface ServingService {
+    ServingOrderResponse pickedUp(Long orderId);
+    ServingOrderResponse delivered(Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/DishPhotoServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+import com.agacostays.restaurant.dto.request.DishPhotoRequest;
+import com.agacostays.restaurant.dto.response.DishPhotoResponse;
+import com.agacostays.restaurant.entity.RestaurantMenuPhoto;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.mapper.RestaurantMenuPhotoMapper;
+import com.agacostays.restaurant.repository.RestaurantMenuPhotoRepository;
+import com.agacostays.restaurant.repository.RestaurantMenuRepository;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class DishPhotoServiceImpl implements com.agacostays.restaurant.service.DishPhotoService {
+    private final RestaurantMenuPhotoRepository photoRepo;
+    private final RestaurantMenuRepository menuRepo;
+    private final RestaurantMenuPhotoMapper mapper;
+    private final CurrentUserProvider currentUser;
+
+    public DishPhotoServiceImpl(RestaurantMenuPhotoRepository photoRepo, RestaurantMenuRepository menuRepo,
+                                RestaurantMenuPhotoMapper mapper, CurrentUserProvider currentUser) {
+        this.photoRepo=photoRepo; this.menuRepo=menuRepo; this.mapper=mapper; this.currentUser=currentUser;
+    }
+
+    @Override @Transactional
+    public DishPhotoResponse add(Long branchId, Long menuItemId, DishPhotoRequest req) {
+        var menu = menuRepo.findById(menuItemId).orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
+        if (!menu.getBranchId().equals(branchId)) throw new ResourceNotFoundException("Menu item not found for branch");
+        if (req.isPrimaryPhoto()) {
+            photoRepo.findByMenuItemId(menuItemId).forEach(p -> { p.setPrimaryPhoto(false); photoRepo.save(p); });
+        }
+        var p = RestaurantMenuPhoto.builder().branchId(branchId).restaurantId(menu.getRestaurantId())
+                .menuItemId(menuItemId).photoUrl(req.getPhotoUrl()).caption(req.getCaption())
+                .primaryPhoto(req.isPrimaryPhoto()).uploadedBy(currentUser.userId()).build();
+        return mapper.toResponse(photoRepo.save(p));
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<DishPhotoResponse> list(Long menuItemId) {
+        return photoRepo.findByMenuItemId(menuItemId).stream().map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional
+    public void delete(Long photoId) {
+        if (!photoRepo.existsById(photoId)) throw new ResourceNotFoundException("Photo not found");
+        photoRepo.deleteById(photoId);
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/FoodOrderServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+
+import com.agacostays.restaurant.client.BookingServiceClient;
+import com.agacostays.restaurant.dto.request.CreateFoodOrderRequest;
+import com.agacostays.restaurant.dto.response.*;
+import com.agacostays.restaurant.entity.*;
+import com.agacostays.restaurant.enums.*;
+import com.agacostays.restaurant.exception.*;
+import com.agacostays.restaurant.mapper.RestaurantOrderMapper;
+import com.agacostays.restaurant.repository.*;
+import com.agacostays.restaurant.producer.RestaurantEventProducer;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Service
+public class FoodOrderServiceImpl implements com.agacostays.restaurant.service.FoodOrderService {
+    private final RestaurantOrderRepository orderRepo;
+    private final RestaurantOrderItemRepository itemRepo;
+    private final RestaurantMenuRepository menuRepo;
+    private final RestaurantRepository restaurantRepo;
+    private final BookingServiceClient bookingClient;
+    private final RestaurantOrderMapper mapper;
+    private final RestaurantEventProducer producer;
+    private final CurrentUserProvider currentUser;
+
+    public FoodOrderServiceImpl(RestaurantOrderRepository orderRepo, RestaurantOrderItemRepository itemRepo,
+                                RestaurantMenuRepository menuRepo, RestaurantRepository restaurantRepo,
+                                BookingServiceClient bookingClient, RestaurantOrderMapper mapper,
+                                RestaurantEventProducer producer, CurrentUserProvider currentUser) {
+        this.orderRepo=orderRepo; this.itemRepo=itemRepo; this.menuRepo=menuRepo; this.restaurantRepo=restaurantRepo;
+        this.bookingClient=bookingClient; this.mapper=mapper; this.producer=producer; this.currentUser=currentUser;
+    }
+
+    @Override @Transactional
+    public FoodOrderResponse create(Long branchId, CreateFoodOrderRequest req) {
+        var booking;
+        try {
+            booking = bookingClient.getBooking(req.getBookingId());
+        } catch (Exception ex) {
+            throw new BusinessRuleException("Booking could not be validated");
+        }
+        if (booking.bookingId()==null || booking.customerId()==null)
+            throw new BusinessRuleException("Invalid booking response");
+        if (!"APPROVED".equalsIgnoreCase(booking.status()) && !"CHECKED_IN".equalsIgnoreCase(booking.status()))
+            throw new BusinessRuleException("Food order requires an approved or checked-in booking");
+
+        var restaurant = restaurantRepo.findByBranchId(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+
+        RestaurantOrder order = RestaurantOrder.builder()
+                .branchId(branchId).restaurantId(restaurant.getRestaurantId()).bookingId(req.getBookingId())
+                .roomId(req.getRoomId()).customerId(booking.customerId())
+                .totalAmount(BigDecimal.ZERO).orderStatus(FoodOrderStatus.PLACED)
+                .deliveryType(req.getDeliveryType()).paymentMode(req.getPaymentMode())
+                .createdBy(currentUser.userId()).updatedBy(currentUser.userId()).build();
+
+        order = orderRepo.save(order);
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (var requestItem : req.getItems()) {
+            RestaurantMenu menu = menuRepo.findById(requestItem.getMenuItemId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Menu item not found: " + requestItem.getMenuItemId()));
+            if (!menu.getBranchId().equals(branchId) || !menu.isAvailability() || menu.getStatus()!=MenuItemStatus.AVAILABLE)
+                throw new BusinessRuleException("Menu item is not available: " + menu.getItemName());
+            BigDecimal line = menu.getPrice().multiply(BigDecimal.valueOf(requestItem.getQuantity()));
+            total = total.add(line);
+            itemRepo.save(RestaurantOrderItem.builder().orderId(order.getOrderId())
+                    .menuItemId(menu.getMenuItemId()).itemName(menu.getItemName())
+                    .quantity(requestItem.getQuantity()).unitPrice(menu.getPrice()).lineTotal(line).build());
+        }
+        order.setTotalAmount(total);
+        order = orderRepo.save(order);
+        producer.placed(order);
+        return toResponse(order);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public FoodOrderResponse get(Long orderId) {
+        RestaurantOrder o = orderRepo.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        return toResponse(o);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<FoodOrderResponse> myOrders() {
+        Long customerId = currentUser.userId();
+        return orderRepo.findByCustomerIdOrderByCreatedAtDesc(customerId).stream().map(this::toResponse).toList();
+    }
+
+    @Override @Transactional
+    public FoodOrderResponse updateStatus(Long orderId, FoodOrderStatus status) {
+        RestaurantOrder o = orderRepo.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        o.setOrderStatus(status);
+        o.setUpdatedBy(currentUser.userId());
+        o = orderRepo.save(o);
+
+        switch (status) {
+            case ACCEPTED -> producer.accepted(o);
+            case REJECTED -> producer.rejected(o);
+            case READY_FOR_DELIVERY -> producer.ready(o);
+            case DELIVERED -> producer.delivered(o);
+            case CANCELLED -> producer.cancelled(o);
+            default -> {}
+        }
+        return toResponse(o);
+    }
+
+    private FoodOrderResponse toResponse(RestaurantOrder o) {
+        var items = itemRepo.findByOrderId(o.getOrderId()).stream().map(mapper::item).toList();
+        return mapper.toResponse(o, items);
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/KitchenServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+import com.agacostays.restaurant.dto.response.KitchenOrderResponse;
+import com.agacostays.restaurant.enums.FoodOrderStatus;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.repository.RestaurantOrderRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class KitchenServiceImpl implements com.agacostays.restaurant.service.KitchenService {
+    private final RestaurantOrderRepository repo;
+    public KitchenServiceImpl(RestaurantOrderRepository repo){this.repo=repo;}
+    @Override @Transactional public KitchenOrderResponse preparing(Long orderId){
+        var o=repo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        o.setOrderStatus(FoodOrderStatus.PREPARING); repo.save(o); return new KitchenOrderResponse(orderId,o.getOrderStatus());
+    }
+    @Override @Transactional public KitchenOrderResponse ready(Long orderId){
+        var o=repo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        o.setOrderStatus(FoodOrderStatus.READY_FOR_DELIVERY); repo.save(o); return new KitchenOrderResponse(orderId,o.getOrderStatus());
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/MenuServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+
+import com.agacostays.restaurant.dto.request.*;
+import com.agacostays.restaurant.dto.response.MenuItemResponse;
+import com.agacostays.restaurant.entity.RestaurantMenu;
+import com.agacostays.restaurant.enums.MenuItemStatus;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.mapper.RestaurantMenuMapper;
+import com.agacostays.restaurant.repository.RestaurantMenuRepository;
+import com.agacostays.restaurant.repository.RestaurantRepository;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+public class MenuServiceImpl implements com.agacostays.restaurant.service.MenuService {
+    private final RestaurantMenuRepository menuRepo;
+    private final RestaurantRepository restaurantRepo;
+    private final RestaurantMenuMapper mapper;
+    private final CurrentUserProvider currentUser;
+
+    public MenuServiceImpl(RestaurantMenuRepository menuRepo, RestaurantRepository restaurantRepo,
+                           RestaurantMenuMapper mapper, CurrentUserProvider currentUser) {
+        this.menuRepo=menuRepo; this.restaurantRepo=restaurantRepo; this.mapper=mapper; this.currentUser=currentUser;
+    }
+
+    @Override @Transactional
+    public MenuItemResponse create(Long branchId, CreateMenuItemRequest req) {
+        var restaurant = restaurantRepo.findByBranchId(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+        RestaurantMenu m = RestaurantMenu.builder()
+                .branchId(branchId).restaurantId(restaurant.getRestaurantId())
+                .itemName(req.getItemName()).category(req.getCategory()).description(req.getDescription())
+                .price(req.getPrice()).availability(req.isAvailability()).foodType(req.getFoodType())
+                .preparationTimeMinutes(req.getPreparationTimeMinutes()).status(MenuItemStatus.AVAILABLE)
+                .createdBy(currentUser.userId()).updatedBy(currentUser.userId()).build();
+        return mapper.toResponse(menuRepo.save(m));
+    }
+
+    @Override @Transactional(readOnly=true)
+    public MenuItemResponse get(Long branchId, Long menuItemId) {
+        RestaurantMenu m = menuRepo.findById(menuItemId).orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
+        if (!m.getBranchId().equals(branchId)) throw new ResourceNotFoundException("Menu item not found for branch");
+        return mapper.toResponse(m);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<MenuItemResponse> list(Long branchId, MenuSearchRequest req) {
+        return menuRepo.findByBranchIdAndStatusNot(branchId, MenuItemStatus.DELETED).stream()
+                .filter(m -> req.getItemName()==null || m.getItemName().toLowerCase().contains(req.getItemName().toLowerCase()))
+                .filter(m -> req.getCategory()==null || m.getCategory()==req.getCategory())
+                .filter(m -> req.getFoodType()==null || m.getFoodType()==req.getFoodType())
+                .filter(m -> req.getAvailable()==null || m.isAvailability()==req.getAvailable())
+                .map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional
+    public MenuItemResponse update(Long id, UpdateMenuItemRequest req) {
+        RestaurantMenu m = menuRepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
+        if (req.getItemName()!=null) m.setItemName(req.getItemName());
+        if (req.getCategory()!=null) m.setCategory(req.getCategory());
+        if (req.getDescription()!=null) m.setDescription(req.getDescription());
+        if (req.getPrice()!=null) m.setPrice(req.getPrice());
+        if (req.getAvailability()!=null) m.setAvailability(req.getAvailability());
+        if (req.getFoodType()!=null) m.setFoodType(req.getFoodType());
+        if (req.getPreparationTimeMinutes()!=null) m.setPreparationTimeMinutes(req.getPreparationTimeMinutes());
+        m.setUpdatedBy(currentUser.userId());
+        return mapper.toResponse(menuRepo.save(m));
+    }
+
+    @Override @Transactional
+    public void delete(Long id) {
+        RestaurantMenu m = menuRepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
+        m.setStatus(MenuItemStatus.DELETED); m.setAvailability(false); m.setUpdatedBy(currentUser.userId());
+        menuRepo.save(m);
+    }
+
+    @Override @Transactional
+    public MenuItemResponse updateAvailability(Long id, boolean availability) {
+        RestaurantMenu m = menuRepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Menu item not found"));
+        if (m.getStatus()==MenuItemStatus.DELETED) throw new ResourceNotFoundException("Menu item deleted");
+        m.setAvailability(availability);
+        return mapper.toResponse(menuRepo.save(m));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/RestaurantFeedbackServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+import com.agacostays.restaurant.client.BookingServiceClient;
+import com.agacostays.restaurant.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.restaurant.dto.response.RestaurantFeedbackResponse;
+import com.agacostays.restaurant.entity.RestaurantFeedback;
+import com.agacostays.restaurant.exception.BusinessRuleException;
+import com.agacostays.restaurant.mapper.RestaurantFeedbackMapper;
+import com.agacostays.restaurant.repository.RestaurantFeedbackRepository;
+import com.agacostays.restaurant.repository.RestaurantOrderRepository;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class RestaurantFeedbackServiceImpl implements com.agacostays.restaurant.service.RestaurantFeedbackService {
+    private final RestaurantFeedbackRepository feedbackRepo; private final RestaurantOrderRepository orderRepo;
+    private final RestaurantFeedbackMapper mapper; private final CurrentUserProvider currentUser;
+    public RestaurantFeedbackServiceImpl(RestaurantFeedbackRepository feedbackRepo, RestaurantOrderRepository orderRepo,
+                                         RestaurantFeedbackMapper mapper, CurrentUserProvider currentUser){
+        this.feedbackRepo=feedbackRepo;this.orderRepo=orderRepo;this.mapper=mapper;this.currentUser=currentUser;
+    }
+    @Override @Transactional
+    public RestaurantFeedbackResponse create(Long branchId, RestaurantFeedbackRequest req){
+        var order=orderRepo.findById(req.getOrderId()).orElseThrow(()->new BusinessRuleException("Order not found"));
+        if(!order.getBranchId().equals(branchId) || !order.getCustomerId().equals(currentUser.userId()))
+            throw new BusinessRuleException("Order does not belong to current customer/branch");
+        if(order.getOrderStatus()!=com.agacostays.restaurant.enums.FoodOrderStatus.DELIVERED)
+            throw new BusinessRuleException("Feedback requires a delivered order");
+        RestaurantFeedback f=RestaurantFeedback.builder().branchId(branchId).restaurantId(order.getRestaurantId())
+            .orderId(order.getOrderId()).customerId(currentUser.userId()).rating(req.getRating()).comments(req.getComments()).build();
+        return mapper.toResponse(feedbackRepo.save(f));
+    }
+    @Override @Transactional(readOnly=true)
+    public List<RestaurantFeedbackResponse> byBranch(Long branchId){
+        return feedbackRepo.findByRestaurantIdOrderByCreatedAtDesc(branchId).stream().map(mapper::toResponse).toList();
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/RestaurantOrderAssignmentServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+import com.agacostays.restaurant.entity.RestaurantOrderAssignment;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.repository.RestaurantOrderAssignmentRepository;
+import com.agacostays.restaurant.repository.RestaurantOrderRepository;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class RestaurantOrderAssignmentServiceImpl implements com.agacostays.restaurant.service.RestaurantOrderAssignmentService {
+    private final RestaurantOrderAssignmentRepository repo; private final RestaurantOrderRepository orderRepo;
+    private final CurrentUserProvider currentUser;
+    public RestaurantOrderAssignmentServiceImpl(RestaurantOrderAssignmentRepository repo, RestaurantOrderRepository orderRepo, CurrentUserProvider currentUser){
+        this.repo=repo;this.orderRepo=orderRepo;this.currentUser=currentUser;
+    }
+    @Override @Transactional public void assignChef(Long orderId, Long chefId){
+        orderRepo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        var a=repo.findByOrderId(orderId).orElseGet(()->RestaurantOrderAssignment.builder().orderId(orderId).build());
+        a.setChefId(chefId);a.setAssignedBy(currentUser.userId());repo.save(a);
+    }
+    @Override @Transactional public void assignServingStaff(Long orderId, Long staffId){
+        orderRepo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        var a=repo.findByOrderId(orderId).orElseGet(()->RestaurantOrderAssignment.builder().orderId(orderId).build());
+        a.setServingStaffId(staffId);a.setAssignedBy(currentUser.userId());repo.save(a);
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/RestaurantServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+
+import com.agacostays.restaurant.dto.request.RestaurantRequest;
+import com.agacostays.restaurant.dto.response.RestaurantResponse;
+import com.agacostays.restaurant.entity.Restaurant;
+import com.agacostays.restaurant.enums.RestaurantStatus;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.mapper.RestaurantMapper;
+import com.agacostays.restaurant.repository.RestaurantRepository;
+import com.agacostays.restaurant.security.CurrentUserProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class RestaurantServiceImpl implements com.agacostays.restaurant.service.RestaurantService {
+    private final RestaurantRepository repository;
+    private final RestaurantMapper mapper;
+    private final CurrentUserProvider currentUser;
+
+    public RestaurantServiceImpl(RestaurantRepository repository, RestaurantMapper mapper, CurrentUserProvider currentUser) {
+        this.repository=repository; this.mapper=mapper; this.currentUser=currentUser;
+    }
+
+    @Override @Transactional(readOnly=true)
+    public RestaurantResponse get(Long branchId) {
+        return mapper.toResponse(repository.findByBranchId(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found for branch " + branchId)));
+    }
+
+    @Override @Transactional
+    public RestaurantResponse create(Long branchId, RestaurantRequest request) {
+        if (repository.findByBranchId(branchId).isPresent())
+            throw new com.agacostays.restaurant.exception.DuplicateResourceException("Restaurant already exists for branch");
+        Restaurant r = Restaurant.builder().branchId(branchId).restaurantName(request.getRestaurantName())
+                .description(request.getDescription()).openingTime(request.getOpeningTime()).closingTime(request.getClosingTime())
+                .status(RestaurantStatus.ACTIVE).createdBy(currentUser.userId()).updatedBy(currentUser.userId()).build();
+        return mapper.toResponse(repository.save(r));
+    }
+
+    @Override @Transactional
+    public RestaurantResponse update(Long branchId, RestaurantRequest request) {
+        Restaurant r = repository.findByBranchId(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Restaurant not found"));
+        r.setRestaurantName(request.getRestaurantName());
+        r.setDescription(request.getDescription());
+        r.setOpeningTime(request.getOpeningTime());
+        r.setClosingTime(request.getClosingTime());
+        r.setUpdatedBy(currentUser.userId());
+        return mapper.toResponse(repository.save(r));
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/service/impl/ServingServiceImpl.java =====
+package com.agacostays.restaurant.service.impl;
+import com.agacostays.restaurant.dto.response.ServingOrderResponse;
+import com.agacostays.restaurant.enums.FoodOrderStatus;
+import com.agacostays.restaurant.exception.ResourceNotFoundException;
+import com.agacostays.restaurant.repository.RestaurantOrderRepository;
+import com.agacostays.restaurant.producer.RestaurantEventProducer;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ServingServiceImpl implements com.agacostays.restaurant.service.ServingService {
+    private final RestaurantOrderRepository repo; private final RestaurantEventProducer producer;
+    public ServingServiceImpl(RestaurantOrderRepository repo, RestaurantEventProducer producer){this.repo=repo;this.producer=producer;}
+    @Override @Transactional public ServingOrderResponse pickedUp(Long orderId){
+        var o=repo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        o.setOrderStatus(FoodOrderStatus.OUT_FOR_DELIVERY); repo.save(o); return new ServingOrderResponse(orderId,o.getOrderStatus());
+    }
+    @Override @Transactional public ServingOrderResponse delivered(Long orderId){
+        var o=repo.findById(orderId).orElseThrow(()->new ResourceNotFoundException("Order not found"));
+        o.setOrderStatus(FoodOrderStatus.DELIVERED); repo.save(o); producer.delivered(o); return new ServingOrderResponse(orderId,o.getOrderStatus());
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/storage/StorageService.java =====
+package com.agacostays.restaurant.storage;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
+public interface StorageService {
+    String store(MultipartFile file, String folder) throws IOException;
+    void delete(String storedPath) throws IOException;
+}
+
+
+===== src/main/java/com/agacostays/restaurant/storage/impl/LocalStorageServiceImpl.java =====
+package com.agacostays.restaurant.storage.impl;
+
+import com.agacostays.restaurant.storage.StorageService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.*;
+
+@Service
+public class LocalStorageServiceImpl implements StorageService {
+    private final Path root;
+    public LocalStorageServiceImpl(@Value("${storage.local.root:uploads}") String root) {
+        this.root = Paths.get(root).toAbsolutePath().normalize();
+    }
+    @Override public String store(MultipartFile file, String folder) throws IOException {
+        Files.createDirectories(root.resolve(folder));
+        String safe = System.currentTimeMillis() + "-" + Path.of(file.getOriginalFilename()).getFileName();
+        Path target = root.resolve(folder).resolve(safe);
+        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        return "/uploads/" + folder + "/" + safe;
+    }
+    @Override public void delete(String storedPath) throws IOException {
+        if (storedPath == null) return;
+        String relative = storedPath.replaceFirst("^/uploads/?","");
+        Files.deleteIfExists(root.resolve(relative).normalize());
+    }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/util/DateRangeUtil.java =====
+package com.agacostays.restaurant.util;
+import java.time.LocalDate;
+public final class DateRangeUtil {
+    private DateRangeUtil() {}
+    public static boolean valid(LocalDate start, LocalDate end){ return start!=null && end!=null && !end.isBefore(start); }
+}
+
+
+===== src/main/java/com/agacostays/restaurant/util/RestaurantUtil.java =====
+package com.agacostays.restaurant.util;
+import org.springframework.stereotype.Component;
+@Component
+public class RestaurantUtil {}
+
+
+===== src/main/java/com/agacostays/restaurant/validation/RestaurantValidationService.java =====
+package com.agacostays.restaurant.validation;
+import org.springframework.stereotype.Service;
+@Service
+public class RestaurantValidationService {
+    public void validateRating(Integer rating) {
+        if (rating == null || rating < 1 || rating > 5) throw new IllegalArgumentException("Rating must be between 1 and 5");
+    }
+}
+
+
+===== src/main/resources/application-dev.properties =====
+spring.config.activate.on-profile=dev
+logging.level.com.agacostays.restaurant=DEBUG
+
+
+===== src/main/resources/application-prod.properties =====
+spring.config.activate.on-profile=prod
+logging.level.root=INFO
+logging.level.com.agacostays.restaurant=INFO
+
+
+===== src/main/resources/application.properties =====
+server.port=8087
+spring.application.name=restaurant-service
+
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/restaurant_db}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:postgres}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.open-in-view=false
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.properties.hibernate.format_sql=true
+
+spring.flyway.enabled=true
+spring.flyway.locations=classpath:db/migration
+
+spring.kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+spring.kafka.consumer.group-id=restaurant-service
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.properties.spring.json.trusted.packages=com.agacostays.*
+spring.kafka.producer.properties.spring.json.add.type.headers=true
+
+services.booking.url=${BOOKING_SERVICE_URL:http://localhost:8086}
+services.user.url=${USER_SERVICE_URL:http://localhost:8082}
+services.payment.url=${PAYMENT_SERVICE_URL:http://localhost:8088}
+services.billing.url=${BILLING_SERVICE_URL:http://localhost:8089}
+services.notification.url=${NOTIFICATION_SERVICE_URL:http://localhost:8090}
+
+security.jwt.secret=${JWT_SECRET:change-this-development-secret-to-at-least-32-characters}
+storage.local.root=${STORAGE_LOCAL_ROOT:uploads}
+
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=30MB
+
+management.endpoints.web.exposure.include=health,info,metrics,prometheus
+management.endpoint.health.show-details=when_authorized
+
+logging.level.com.agacostays.restaurant=INFO
+
+
+===== src/main/resources/db/migration/V1__create_core_tables.sql =====
+CREATE TABLE restaurants (
+    restaurant_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL UNIQUE,
+    restaurant_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    opening_time TIME,
+    closing_time TIME,
+    status VARCHAR(30) NOT NULL,
+    created_by BIGINT,
+    updated_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_menu (
+    menu_item_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    restaurant_id BIGINT NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    category VARCHAR(40) NOT NULL,
+    description TEXT,
+    price NUMERIC(12,2) NOT NULL,
+    availability BOOLEAN NOT NULL,
+    food_type VARCHAR(20) NOT NULL,
+    preparation_time_minutes INTEGER,
+    status VARCHAR(30) NOT NULL,
+    created_by BIGINT,
+    updated_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_menu_photos (
+    photo_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    restaurant_id BIGINT NOT NULL,
+    menu_item_id BIGINT NOT NULL,
+    photo_url TEXT NOT NULL,
+    caption TEXT,
+    is_primary BOOLEAN NOT NULL,
+    uploaded_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_orders (
+    order_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    restaurant_id BIGINT NOT NULL,
+    booking_id BIGINT,
+    room_id BIGINT,
+    customer_id BIGINT NOT NULL,
+    total_amount NUMERIC(12,2) NOT NULL,
+    order_status VARCHAR(40) NOT NULL,
+    delivery_type VARCHAR(30) NOT NULL,
+    payment_mode VARCHAR(30) NOT NULL,
+    created_by BIGINT,
+    updated_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_order_items (
+    order_item_id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    menu_item_id BIGINT NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price NUMERIC(12,2) NOT NULL,
+    line_total NUMERIC(12,2) NOT NULL
+);
+
+CREATE TABLE restaurant_feedback (
+    feedback_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    restaurant_id BIGINT NOT NULL,
+    order_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
+    rating INTEGER NOT NULL,
+    comments TEXT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_order_assignment (
+    assignment_id BIGSERIAL PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    chef_id BIGINT,
+    serving_staff_id BIGINT,
+    assigned_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+
+===== src/main/resources/db/migration/V2__create_indexes.sql =====
+CREATE INDEX idx_menu_branch ON restaurant_menu(branch_id);
+CREATE INDEX idx_menu_restaurant ON restaurant_menu(restaurant_id);
+CREATE INDEX idx_menu_photo_item ON restaurant_menu_photos(menu_item_id);
+CREATE INDEX idx_order_branch ON restaurant_orders(branch_id);
+CREATE INDEX idx_order_booking ON restaurant_orders(booking_id);
+CREATE INDEX idx_order_customer ON restaurant_orders(customer_id);
+CREATE INDEX idx_order_item_order ON restaurant_order_items(order_id);
+CREATE INDEX idx_feedback_restaurant ON restaurant_feedback(restaurant_id);
+CREATE INDEX idx_assignment_order ON restaurant_order_assignment(order_id);
+
+
+===== src/main/resources/db/migration/V3__insert_default_data.sql =====
+-- No default restaurant data is required.
+
+
+===== src/main/resources/logback-spring.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern></encoder>
+    </appender>
+    <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+</configuration>
+
+
+===== src/test/java/com/agacostays/restaurant/RestaurantServiceApplicationTest.java =====
+package com.agacostays.restaurant;
+
+import org.junit.jupiter.api.Test;
+class RestaurantServiceApplicationTest {
+    @Test void smokeTest() {}
+}
+

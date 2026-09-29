@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.request; public record SalarySlipRequest(String recipientEmail){}

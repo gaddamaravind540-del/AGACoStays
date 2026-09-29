@@ -1,0 +1,4 @@
+#!/bin/sh
+# Minimal Maven Wrapper launcher for environments where Maven is installed.
+# In Spring Tool Suite, use the project's Maven runner directly when preferred.
+exec mvn "$@"

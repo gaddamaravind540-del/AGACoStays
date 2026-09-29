@@ -1,0 +1,10 @@
+CREATE INDEX idx_user_email ON users(email);
+CREATE INDEX idx_user_role ON users(role_id);
+CREATE INDEX idx_manager_user ON manager_profiles(user_id);
+CREATE INDEX idx_staff_user ON staff(user_id);
+CREATE INDEX idx_customer_user ON customers(user_id);
+CREATE INDEX idx_permission_code ON permissions(permission_code);
+CREATE INDEX idx_rp_role ON role_permissions(role_id);
+CREATE INDEX idx_mapping_staff ON staff_branch_mapping(staff_id);
+CREATE INDEX idx_mapping_branch ON staff_branch_mapping(branch_id);
+CREATE INDEX idx_audit_target ON user_audit_logs(target_user_id);

@@ -1,0 +1,32 @@
+AGA CoStays Auth Service — Spring Tool Suite setup
+
+1. Extract auth-service-complete-properties.zip.
+2. STS -> File -> Import -> Maven -> Existing Maven Projects.
+3. Select the extracted auth-service folder.
+4. Create PostgreSQL database:
+       auth_db
+5. Edit:
+       src/main/resources/application.properties
+6. Default local database settings:
+       URL      jdbc:postgresql://localhost:5432/auth_db
+       Username postgres
+       Password postgres
+7. Start Redis if available:
+       docker run --name aga-costays-redis -p 6379:6379 -d redis:8-alpine
+8. Start Kafka if available:
+       localhost:9092
+9. Run:
+       com.agacostays.auth.AuthServiceApplication
+10. Test:
+       GET http://localhost:8081/actuator/health
+11. Register a customer through:
+       POST http://localhost:8081/api/auth/register
+12. Login through:
+       POST http://localhost:8081/api/auth/login
+
+Important:
+- Flyway creates the auth_db schema automatically.
+- Do not create users table manually if Flyway is enabled.
+- For local testing, the development reset token and OTP are returned in the API response.
+- The API Gateway should use the same JWT_SECRET.
+- Downstream services must still validate JWT and enforce permission/branch/ownership rules.

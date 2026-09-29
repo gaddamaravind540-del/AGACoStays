@@ -1,0 +1,117 @@
+CREATE TABLE roles (
+ role_id BIGSERIAL PRIMARY KEY,
+ role_name VARCHAR(60) NOT NULL UNIQUE,
+ description VARCHAR(255),
+ status VARCHAR(20) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE users (
+ user_id BIGSERIAL PRIMARY KEY,
+ full_name VARCHAR(120) NOT NULL,
+ email VARCHAR(180) NOT NULL UNIQUE,
+ phone VARCHAR(20),
+ password_hash VARCHAR(255),
+ role_id BIGINT NOT NULL,
+ user_type VARCHAR(30) NOT NULL,
+ status VARCHAR(20) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_user_role FOREIGN KEY(role_id) REFERENCES roles(role_id)
+);
+
+CREATE TABLE root_admin_profiles (
+ root_admin_id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT NOT NULL UNIQUE,
+ full_name VARCHAR(120) NOT NULL,
+ email VARCHAR(180) NOT NULL,
+ phone VARCHAR(20),
+ status VARCHAR(20) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_root_admin_user FOREIGN KEY(user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE manager_profiles (
+ manager_id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT NOT NULL UNIQUE,
+ full_name VARCHAR(120) NOT NULL,
+ email VARCHAR(180) NOT NULL,
+ phone VARCHAR(20),
+ access_level VARCHAR(30) NOT NULL,
+ status VARCHAR(20) NOT NULL,
+ created_by_root_admin BIGINT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_manager_user FOREIGN KEY(user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE staff (
+ staff_id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT NOT NULL UNIQUE,
+ department VARCHAR(40) NOT NULL,
+ shift VARCHAR(20) NOT NULL,
+ joining_date DATE NOT NULL,
+ status VARCHAR(20) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_staff_user FOREIGN KEY(user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE customers (
+ customer_id BIGSERIAL PRIMARY KEY,
+ user_id BIGINT NOT NULL UNIQUE,
+ address VARCHAR(500),
+ status VARCHAR(20) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_customer_user FOREIGN KEY(user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE permissions (
+ permission_id BIGSERIAL PRIMARY KEY,
+ permission_code VARCHAR(100) NOT NULL UNIQUE,
+ permission_name VARCHAR(150) NOT NULL,
+ description VARCHAR(255),
+ module_name VARCHAR(50) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE role_permissions (
+ role_permission_id BIGSERIAL PRIMARY KEY,
+ role_id BIGINT NOT NULL,
+ permission_id BIGINT NOT NULL,
+ created_by BIGINT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT uk_role_permission UNIQUE(role_id,permission_id),
+ CONSTRAINT fk_rp_role FOREIGN KEY(role_id) REFERENCES roles(role_id),
+ CONSTRAINT fk_rp_permission FOREIGN KEY(permission_id) REFERENCES permissions(permission_id)
+);
+
+CREATE TABLE staff_branch_mapping (
+ mapping_id BIGSERIAL PRIMARY KEY,
+ staff_id BIGINT NOT NULL,
+ branch_id BIGINT NOT NULL,
+ role_id BIGINT NOT NULL,
+ department VARCHAR(40) NOT NULL,
+ shift VARCHAR(20) NOT NULL,
+ assigned_from DATE NOT NULL,
+ assigned_to DATE,
+ status VARCHAR(20) NOT NULL,
+ created_by BIGINT,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_mapping_staff FOREIGN KEY(staff_id) REFERENCES staff(staff_id),
+ CONSTRAINT fk_mapping_role FOREIGN KEY(role_id) REFERENCES roles(role_id)
+);
+
+CREATE TABLE user_audit_logs (
+ audit_log_id BIGSERIAL PRIMARY KEY,
+ actor_user_id BIGINT,
+ target_user_id BIGINT,
+ action VARCHAR(100) NOT NULL,
+ description VARCHAR(500),
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
