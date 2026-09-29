@@ -1,0 +1,2 @@
+package com.agacostays.analytics.enums;
+public enum ReportType { HOTEL_DASHBOARD, RESTAURANT_DASHBOARD, REVENUE, OCCUPANCY, ATTENDANCE, PAYROLL, BRANCH_PERFORMANCE, WEBSITE }

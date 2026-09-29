@@ -1,0 +1,1 @@
+-- No default restaurant data is required.

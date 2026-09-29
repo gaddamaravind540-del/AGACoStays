@@ -1,0 +1,1 @@
+package com.agacostays.payroll.util; import java.time.LocalDate; public final class DateRangeUtil{private DateRangeUtil(){} public static LocalDate firstDay(int y,int m){return LocalDate.of(y,m,1);}public static LocalDate lastDay(int y,int m){return firstDay(y,m).withDayOfMonth(firstDay(y,m).lengthOfMonth());}}

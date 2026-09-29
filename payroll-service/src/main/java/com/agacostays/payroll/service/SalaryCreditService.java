@@ -1,0 +1,1 @@
+package com.agacostays.payroll.service; import com.agacostays.payroll.dto.response.SalaryCreditResponse; public interface SalaryCreditService{SalaryCreditResponse credit(Long id,String mode,Long actor);SalaryCreditResponse retry(Long id,Long actor);java.util.List<SalaryCreditResponse> creditAll(int month,int year,String mode,Long actor);}

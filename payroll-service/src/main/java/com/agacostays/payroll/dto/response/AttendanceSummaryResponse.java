@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.math.BigDecimal; public record AttendanceSummaryResponse(Long staffId,Integer month,Integer year,Integer totalWorkingDays,Integer presentDays,Integer absentDays,Integer halfDays,Integer leaveDays,BigDecimal workedHours){}

@@ -1,0 +1,1 @@
+package com.agacostays.payroll.service; import com.agacostays.payroll.dto.response.SalarySlipResponse; public interface SalarySlipService{SalarySlipResponse generate(Long payrollId);SalarySlipResponse getByPayroll(Long payrollId);byte[] download(Long payrollId);void sendEmail(Long payrollId,String email);}

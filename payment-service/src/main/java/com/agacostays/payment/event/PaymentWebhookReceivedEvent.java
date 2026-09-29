@@ -1,0 +1,1 @@
+package com.agacostays.payment.event; import java.time.Instant; public record PaymentWebhookReceivedEvent(String eventType,int eventVersion,Instant occurredAt,String webhookEvent,String gatewayOrderId,String gatewayPaymentId,boolean verified) {}

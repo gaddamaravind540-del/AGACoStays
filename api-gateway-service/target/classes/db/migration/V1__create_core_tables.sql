@@ -1,0 +1,3 @@
+-- API Gateway has no application database.
+-- This file is retained because the source architecture completeness checklist
+-- explicitly lists the db/migration directory for the gateway structure.

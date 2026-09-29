@@ -1,0 +1,1 @@
+package com.agacostays.payroll.security; import org.springframework.stereotype.Component; @Component public class RoleBasedAccessService{public boolean managerOrRoot(String r){return "MANAGER".equals(r)||"ROOT_ADMIN".equals(r);}}

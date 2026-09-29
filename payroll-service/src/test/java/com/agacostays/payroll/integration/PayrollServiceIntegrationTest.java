@@ -1,0 +1,1 @@
+package com.agacostays.payroll.integration; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertTrue; class PayrollServiceIntegrationTest{@Test void baseline(){assertTrue(true);}}

@@ -1,0 +1,2 @@
+-- No mandatory seed rows are required for attendance.
+-- Attendance rows are created by staff check-in/manual marking.

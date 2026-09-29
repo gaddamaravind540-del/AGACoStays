@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.request; import jakarta.validation.constraints.NotBlank; public record CreditSalaryRequest(@NotBlank String paymentMode){}

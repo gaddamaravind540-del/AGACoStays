@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.request; import jakarta.validation.constraints.*; public record StaffBankAccountRequest(@NotBlank String accountHolderName,@NotBlank String bankName,@NotBlank String accountNumber,@NotBlank String ifscCode,String branchName,String accountType){}

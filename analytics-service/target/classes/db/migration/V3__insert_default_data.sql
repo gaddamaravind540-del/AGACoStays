@@ -1,0 +1,1 @@
+-- Analytics projections are populated from Kafka domain events.

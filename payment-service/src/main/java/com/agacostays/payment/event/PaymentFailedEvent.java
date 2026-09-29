@@ -1,0 +1,1 @@
+package com.agacostays.payment.event; import java.math.BigDecimal; import java.time.Instant; public record PaymentFailedEvent(String eventType,int eventVersion,Instant occurredAt,Long paymentId,Long customerId,Long branchId,String referenceId,BigDecimal amount,String reason,String correlationId) {}

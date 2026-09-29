@@ -1,0 +1,9 @@
+package com.agacostays.payment.controller;
+import com.agacostays.payment.dto.request.*; import com.agacostays.payment.dto.response.*; import com.agacostays.payment.service.PaymentService; import jakarta.validation.Valid; import org.springframework.data.domain.PageRequest; import org.springframework.http.*; import org.springframework.web.bind.annotation.*;
+@RestController @RequestMapping("/api/payments") public class PaymentController { private final PaymentService service; public PaymentController(PaymentService s){service=s;}
+ @PostMapping({"/create","/orders"}) public ResponseEntity<ApiResponse<PaymentResponse>> create(@Valid @RequestBody CreatePaymentRequest r,@RequestHeader(value="Idempotency-Key",required=false)String k){return ResponseEntity.ok(ApiResponse.ok("Payment order created",service.createPayment(r,k)));}
+ @PostMapping("/verify") public ResponseEntity<ApiResponse<VerifyPaymentResponse>> verify(@Valid @RequestBody VerifyPaymentRequest r){return ResponseEntity.ok(ApiResponse.ok("Payment verified",service.verifyPayment(r)));}
+ @GetMapping("/my-payments") public ResponseEntity<ApiResponse<PageResponse<PaymentResponse>>> mine(@RequestParam(defaultValue="0")int page,@RequestParam(defaultValue="20")int size){return ResponseEntity.ok(ApiResponse.ok("Payments fetched",service.myPayments(PageRequest.of(page,size))));}
+ @GetMapping("/{paymentId}") public ResponseEntity<ApiResponse<PaymentResponse>> get(@PathVariable Long paymentId){return ResponseEntity.ok(ApiResponse.ok("Payment fetched",service.get(paymentId)));}
+ @GetMapping("/booking/{bookingId}") public ResponseEntity<ApiResponse<PageResponse<PaymentResponse>>> byBooking(@PathVariable Long bookingId,@RequestParam(defaultValue="0")int page,@RequestParam(defaultValue="20")int size){return ResponseEntity.ok(ApiResponse.ok("Booking payments fetched",service.bookingPayments(bookingId,PageRequest.of(page,size))));}
+}

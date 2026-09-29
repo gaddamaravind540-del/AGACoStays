@@ -1,0 +1,1 @@
+package com.agacostays.billing.dto.response; import java.math.BigDecimal;import java.time.OffsetDateTime; public record BillChargeResponse(Long chargeId,Long billId,String chargeType,String description,String referenceId,BigDecimal amount,OffsetDateTime createdAt){}

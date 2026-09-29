@@ -1,0 +1,1 @@
+package com.agacostays.payroll.repository; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertNotNull; class PayrollRepositoryTest{@Test void load(){assertNotNull(PayrollRepository.class);}}

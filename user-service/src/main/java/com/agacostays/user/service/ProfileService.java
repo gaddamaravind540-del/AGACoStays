@@ -1,0 +1,2 @@
+package com.agacostays.user.service;
+import com.agacostays.user.dto.request.*; import com.agacostays.user.dto.response.*; public interface ProfileService { UserProfileResponse getMe(Long userId); UserProfileResponse updateMe(Long userId,UpdateProfileRequest r); }

@@ -1,0 +1,1 @@
+package com.agacostays.billing.audit;import lombok.extern.slf4j.Slf4j;import org.springframework.stereotype.Component;@Component @Slf4j public class BillingAuditHelper{public void record(AuditLogRequest r){log.info("AUDIT {} {} {} {} {}",r.action(),r.actorId(),r.branchId(),r.resourceId(),r.details());}}

@@ -1,0 +1,16 @@
+services:
+  user-postgres:
+    image: postgres:17-alpine
+    container_name: aga-costays-user-postgres
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  user_postgres_data:

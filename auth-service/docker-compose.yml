@@ -1,0 +1,23 @@
+services:
+  auth-postgres:
+    image: postgres:17-alpine
+    container_name: aga-costays-auth-postgres
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  auth-redis:
+    image: redis:8-alpine
+    container_name: aga-costays-auth-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  auth_postgres_data:

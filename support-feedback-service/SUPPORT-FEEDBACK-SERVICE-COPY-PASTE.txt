@@ -1,0 +1,2264 @@
+
+===== .dockerignore =====
+target/
+.git/
+.idea/
+
+
+===== Dockerfile =====
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY target/support-feedback-service-0.0.1-SNAPSHOT.jar app.jar
+EXPOSE 8091
+ENTRYPOINT ["java","-jar","app.jar"]
+
+
+===== README.md =====
+# AGA CoStays Support Feedback Service
+
+Application folder: `support-feedback-service`
+Base package: `com.agacostays.support`
+Database: `support_db`
+Port: `8091`
+
+Configuration uses:
+- `application.properties`
+- `application-dev.properties`
+- `application-prod.properties`
+
+Responsibilities:
+- Customer support requests
+- Support assignment/status updates
+- Hotel feedback
+- Restaurant feedback
+- Kafka notification/analytics events
+- Checkout/food-delivery event consumption
+
+Source-defined endpoint families:
+
+POST /api/support/requests
+GET  /api/support/requests/my-requests
+GET  /api/support/requests/{requestId}
+PUT  /api/support/requests/{requestId}/status
+POST /api/support/requests/{requestId}/assign
+POST /api/feedback
+GET  /api/feedback/my-feedback
+GET  /api/manager/hotel-branches/{branchId}/feedback
+POST /api/restaurant/feedback
+GET  /api/restaurant-admin/hotel-branches/{branchId}/feedback
+PUT  /api/feedback/{feedbackId}
+DELETE /api/feedback/{feedbackId}
+
+
+===== pom.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.agacostays</groupId>
+    <artifactId>support-feedback-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>support-feedback-service</name>
+    <description>AGA CoStays Support Feedback Microservice</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <jjwt.version>0.13.0</jjwt.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+
+===== src/main/java/com/agacostays/support/SupportFeedbackServiceApplication.java =====
+package com.agacostays.support;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableFeignClients
+@EnableScheduling
+public class SupportFeedbackServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SupportFeedbackServiceApplication.class, args);
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/audit/AuditLogRequest.java =====
+package com.agacostays.support.audit;
+import lombok.*;
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class AuditLogRequest {
+    private Long userId;
+    private String roleName;
+    private String moduleName;
+    private String action;
+    private String description;
+}
+
+
+===== src/main/java/com/agacostays/support/audit/SupportFeedbackAuditHelper.java =====
+package com.agacostays.support.audit;
+import org.springframework.stereotype.Component;
+@Component
+public class SupportFeedbackAuditHelper {
+    public AuditLogRequest create(Long userId,String role,String action,String description){
+        return AuditLogRequest.builder().userId(userId).roleName(role).moduleName("SUPPORT_FEEDBACK")
+                .action(action).description(description).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/client/BookingServiceClient.java =====
+package com.agacostays.support.client;
+
+import com.agacostays.support.dto.response.BookingResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name="booking-service", url="${services.booking.url}")
+public interface BookingServiceClient {
+    @GetMapping("/api/bookings/{bookingId}")
+    BookingResponse getBooking(@PathVariable Long bookingId);
+}
+
+
+===== src/main/java/com/agacostays/support/client/NotificationServiceClient.java =====
+package com.agacostays.support.client;
+
+import org.springframework.cloud.openfeign.FeignClient;
+
+@FeignClient(name="notification-service", url="${services.notification.url}")
+public interface NotificationServiceClient {}
+
+
+===== src/main/java/com/agacostays/support/client/RestaurantServiceClient.java =====
+package com.agacostays.support.client;
+
+import com.agacostays.support.dto.response.RestaurantOrderResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name="restaurant-service", url="${services.restaurant.url}")
+public interface RestaurantServiceClient {
+    @GetMapping("/api/restaurant/orders/{orderId}")
+    RestaurantOrderResponse getOrder(@PathVariable Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/support/client/UserServiceClient.java =====
+package com.agacostays.support.client;
+
+import com.agacostays.support.dto.response.UserResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name="user-service", url="${services.user.url}")
+public interface UserServiceClient {
+    @GetMapping("/api/users/{userId}")
+    UserResponse getUser(@PathVariable Long userId);
+}
+
+
+===== src/main/java/com/agacostays/support/config/AppConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class AppConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/FeignClientConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class FeignClientConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/JpaAuditingConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class JpaAuditingConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/KafkaConsumerConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaConsumerConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/KafkaProducerConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaProducerConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/KafkaTopicConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class KafkaTopicConfig {}
+
+
+===== src/main/java/com/agacostays/support/config/OpenApiConfig.java =====
+package com.agacostays.support.config;
+import org.springframework.context.annotation.Configuration;
+@Configuration
+public class OpenApiConfig {}
+
+
+===== src/main/java/com/agacostays/support/constants/HeaderConstants.java =====
+package com.agacostays.support.constants;
+public final class HeaderConstants {
+    private HeaderConstants(){}
+    public static final String TRACE_ID="X-Trace-Id";
+    public static final String CORRELATION_ID="X-Correlation-Id";
+}
+
+
+===== src/main/java/com/agacostays/support/constants/KafkaTopicConstants.java =====
+package com.agacostays.support.constants;
+public final class KafkaTopicConstants {
+    private KafkaTopicConstants(){}
+    public static final String SUPPORT_REQUEST_CREATED="support-request-created";
+    public static final String SUPPORT_STATUS_CHANGED="support-status-changed";
+    public static final String FEEDBACK_SUBMITTED="feedback-submitted";
+    public static final String RESTAURANT_FEEDBACK_SUBMITTED="restaurant-feedback-submitted";
+}
+
+
+===== src/main/java/com/agacostays/support/constants/SupportFeedbackConstants.java =====
+package com.agacostays.support.constants;
+public final class SupportFeedbackConstants {
+    private SupportFeedbackConstants(){}
+    public static final int MIN_RATING=1;
+    public static final int MAX_RATING=5;
+}
+
+
+===== src/main/java/com/agacostays/support/consumer/CheckoutCompletedEventConsumer.java =====
+package com.agacostays.support.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CheckoutCompletedEventConsumer.java {
+    @KafkaListener(topics="checkout-completed", groupId="support-feedback-service")
+    public void handle(String message) {
+        // Event contract is intentionally kept at the shared Kafka boundary.
+        // Production handlers should be idempotent.
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/consumer/FoodDeliveredEventConsumer.java =====
+package com.agacostays.support.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class FoodDeliveredEventConsumer.java {
+    @KafkaListener(topics="food-delivered", groupId="support-feedback-service")
+    public void handle(String message) {
+        // Event contract is intentionally kept at the shared Kafka boundary.
+        // Production handlers should be idempotent.
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/controller/CustomerSupportController.java =====
+package com.agacostays.support.controller;
+
+import com.agacostays.support.dto.request.*;
+import com.agacostays.support.dto.response.*;
+import com.agacostays.support.service.CustomerSupportService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/support")
+public class CustomerSupportController {
+
+    private final CustomerSupportService service;
+
+    public CustomerSupportController(CustomerSupportService service) {
+        this.service=service;
+    }
+
+    @PostMapping("/requests")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<SupportRequestResponse>> create(@Valid @RequestBody CreateSupportRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Support request created", service.create(request)));
+    }
+
+    @GetMapping("/requests/my-requests")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<java.util.List<SupportRequestResponse>>> mine() {
+        return ResponseEntity.ok(ApiResponse.success("Support requests fetched", service.myRequests()));
+    }
+
+    @GetMapping("/requests/{requestId}")
+    public ResponseEntity<ApiResponse<SupportRequestResponse>> get(@PathVariable Long requestId) {
+        return ResponseEntity.ok(ApiResponse.success("Support request fetched", service.get(requestId)));
+    }
+
+    @PutMapping("/requests/{requestId}/status")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST','CHEF','SERVING_STAFF','HOUSEKEEPING_STAFF')")
+    public ResponseEntity<ApiResponse<SupportRequestResponse>> status(
+            @PathVariable Long requestId,
+            @Valid @RequestBody UpdateSupportStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Support status updated", service.updateStatus(requestId,request)));
+    }
+
+    @PostMapping("/requests/{requestId}/assign")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<SupportRequestResponse>> assign(
+            @PathVariable Long requestId,
+            @Valid @RequestBody AssignSupportRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Support request assigned", service.assign(requestId,request)));
+    }
+
+    @GetMapping("/requests")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST','ROOT_ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponse<SupportRequestResponse>>> search(
+            @RequestParam Long branchId, Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success("Support requests fetched", service.search(branchId,pageable)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/controller/FeedbackController.java =====
+package com.agacostays.support.controller;
+
+import com.agacostays.support.dto.request.FeedbackRequest;
+import com.agacostays.support.dto.response.*;
+import com.agacostays.support.service.FeedbackService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/feedback")
+public class FeedbackController {
+
+    private final FeedbackService service;
+
+    public FeedbackController(FeedbackService service){this.service=service;}
+
+    @PostMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<FeedbackResponse>> create(@Valid @RequestBody FeedbackRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Feedback submitted",service.create(request)));
+    }
+
+    @GetMapping("/my-feedback")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<java.util.List<FeedbackResponse>>> myFeedback() {
+        return ResponseEntity.ok(ApiResponse.success("Feedback fetched",service.myFeedback()));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER','ROOT_ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<FeedbackResponse>>> byBranch(@RequestParam Long branchId) {
+        return ResponseEntity.ok(ApiResponse.success("Feedback fetched",service.byBranch(branchId)));
+    }
+
+    @GetMapping("/branch/{branchId}")
+    @PreAuthorize("hasAnyRole('MANAGER','ROOT_ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<FeedbackResponse>>> branch(@PathVariable Long branchId) {
+        return ResponseEntity.ok(ApiResponse.success("Feedback fetched",service.byBranch(branchId)));
+    }
+
+    @PutMapping("/{feedbackId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<FeedbackResponse>> update(
+            @PathVariable Long feedbackId, @Valid @RequestBody FeedbackRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Feedback updated",service.update(feedbackId,request)));
+    }
+
+    @DeleteMapping("/{feedbackId}")
+    @PreAuthorize("hasAnyRole('CUSTOMER','ROOT_ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long feedbackId) {
+        service.delete(feedbackId);
+        return ResponseEntity.ok(ApiResponse.success("Feedback removed",null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/controller/RestaurantFeedbackController.java =====
+package com.agacostays.support.controller;
+
+import com.agacostays.support.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.support.dto.response.*;
+import com.agacostays.support.service.RestaurantFeedbackService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/restaurant")
+public class RestaurantFeedbackController {
+
+    private final RestaurantFeedbackService service;
+
+    public RestaurantFeedbackController(RestaurantFeedbackService service){this.service=service;}
+
+    @PostMapping("/feedback")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<RestaurantFeedbackResponse>> create(
+            @Valid @RequestBody RestaurantFeedbackRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Restaurant feedback submitted",service.create(request)));
+    }
+
+    @GetMapping("/feedback/my-feedback")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<java.util.List<RestaurantFeedbackResponse>>> mine() {
+        return ResponseEntity.ok(ApiResponse.success("Restaurant feedback fetched",service.byMyOrders()));
+    }
+
+    @GetMapping("/feedback")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','RECEPTIONIST','MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.List<RestaurantFeedbackResponse>>> byBranch(
+            @RequestParam Long branchId) {
+        return ResponseEntity.ok(ApiResponse.success("Restaurant feedback fetched",service.byBranch(branchId)));
+    }
+
+    @GetMapping("/feedback/order/{orderId}")
+    @PreAuthorize("hasAnyRole('RESTAURANT_ADMIN','RECEPTIONIST','MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.List<RestaurantFeedbackResponse>>> byOrder(
+            @PathVariable Long orderId) {
+        return ResponseEntity.ok(ApiResponse.success("Restaurant feedback fetched", service.byOrder(orderId)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/controller/SupportAssignmentController.java =====
+package com.agacostays.support.controller;
+
+import com.agacostays.support.dto.request.AssignSupportRequest;
+import com.agacostays.support.dto.response.*;
+import com.agacostays.support.service.SupportAssignmentService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/support")
+public class SupportAssignmentController {
+    private final SupportAssignmentService service;
+    public SupportAssignmentController(SupportAssignmentService service){this.service=service;}
+
+    @PostMapping("/assignments/{requestId}")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<SupportAssignmentResponse>> assign(
+            @PathVariable Long requestId, @Valid @RequestBody AssignSupportRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Support assignment created",service.assign(requestId,request)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/AssignSupportRequest.java =====
+package com.agacostays.support.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class AssignSupportRequest {
+    @NotNull private Long assignedTo;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/CreateSupportRequest.java =====
+package com.agacostays.support.dto.request;
+
+import com.agacostays.support.enums.*;
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+@Data
+public class CreateSupportRequest {
+    private Long branchId;
+    private Long bookingId;
+    @NotNull private SupportRequestType requestType;
+    @NotBlank private String subject;
+    @NotBlank private String description;
+    @NotNull private SupportPriority priority;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/FeedbackRequest.java =====
+package com.agacostays.support.dto.request;
+
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+@Data
+public class FeedbackRequest {
+    @NotNull private Long bookingId;
+    @Min(1) @Max(5) private Integer hotelRating;
+    @Size(max=2000) private String hotelComments;
+    @Min(1) @Max(5) private Integer restaurantRating;
+    @Size(max=2000) private String restaurantComments;
+    private String feedbackType;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/RestaurantFeedbackRequest.java =====
+package com.agacostays.support.dto.request;
+
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+@Data
+public class RestaurantFeedbackRequest {
+    @NotNull private Long orderId;
+    @NotNull @Min(1) @Max(5) private Integer foodRating;
+    @NotNull @Min(1) @Max(5) private Integer tasteRating;
+    @NotNull @Min(1) @Max(5) private Integer deliveryRating;
+    @Size(max=2000) private String comments;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/SupportSearchRequest.java =====
+package com.agacostays.support.dto.request;
+
+import com.agacostays.support.enums.*;
+import lombok.Data;
+
+@Data
+public class SupportSearchRequest {
+    private SupportStatus status;
+    private SupportPriority priority;
+    private SupportRequestType requestType;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/request/UpdateSupportStatusRequest.java =====
+package com.agacostays.support.dto.request;
+
+import com.agacostays.support.enums.SupportStatus;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class UpdateSupportStatusRequest {
+    @NotNull private SupportStatus status;
+    private String remarks;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/ApiResponse.java =====
+package com.agacostays.support.dto.response;
+import lombok.*;
+
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class ApiResponse<T> {
+    private String status;
+    private String message;
+    private T data;
+    public static <T> ApiResponse<T> success(String message, T data) {
+        return ApiResponse.<T>builder().status("success").message(message).data(data).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/BookingResponse.java =====
+package com.agacostays.support.dto.response;
+
+public record BookingResponse(Long bookingId, Long branchId, Long customerId, String status) {}
+
+
+===== src/main/java/com/agacostays/support/dto/response/FeedbackResponse.java =====
+package com.agacostays.support.dto.response;
+
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class FeedbackResponse {
+    private Long feedbackId;
+    private Long branchId;
+    private Long bookingId;
+    private Long customerId;
+    private Integer hotelRating;
+    private String hotelComments;
+    private Integer restaurantRating;
+    private String restaurantComments;
+    private String feedbackType;
+    private OffsetDateTime createdAt;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/PageResponse.java =====
+package com.agacostays.support.dto.response;
+import lombok.Builder;
+import lombok.Data;
+import java.util.List;
+
+@Data @Builder
+public class PageResponse<T> {
+    private List<T> content;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/RestaurantFeedbackResponse.java =====
+package com.agacostays.support.dto.response;
+
+import lombok.*;
+import java.time.OffsetDateTime;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantFeedbackResponse {
+    private Long feedbackId;
+    private Long branchId;
+    private Long bookingId;
+    private Long orderId;
+    private Long customerId;
+    private Integer foodRating;
+    private Integer tasteRating;
+    private Integer deliveryRating;
+    private String comments;
+    private OffsetDateTime createdAt;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/RestaurantOrderResponse.java =====
+package com.agacostays.support.dto.response;
+
+public record RestaurantOrderResponse(Long orderId, Long branchId, Long bookingId, Long customerId, String status) {}
+
+
+===== src/main/java/com/agacostays/support/dto/response/SupportAssignmentResponse.java =====
+package com.agacostays.support.dto.response;
+
+import com.agacostays.support.enums.AssignmentStatus;
+import lombok.*;
+import java.time.OffsetDateTime;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class SupportAssignmentResponse {
+    private Long assignmentId;
+    private Long requestId;
+    private Long assignedTo;
+    private Long assignedBy;
+    private AssignmentStatus assignmentStatus;
+    private OffsetDateTime assignedAt;
+    private OffsetDateTime completedAt;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/SupportRequestResponse.java =====
+package com.agacostays.support.dto.response;
+
+import com.agacostays.support.enums.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class SupportRequestResponse {
+    private Long requestId;
+    private Long branchId;
+    private Long customerId;
+    private Long bookingId;
+    private SupportRequestType requestType;
+    private String subject;
+    private String description;
+    private SupportPriority priority;
+    private SupportStatus status;
+    private Long assignedTo;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+}
+
+
+===== src/main/java/com/agacostays/support/dto/response/UserResponse.java =====
+package com.agacostays.support.dto.response;
+
+public record UserResponse(Long userId, String fullName, String email, String role) {}
+
+
+===== src/main/java/com/agacostays/support/entity/CustomerSupportRequest.java =====
+package com.agacostays.support.entity;
+
+import com.agacostays.support.enums.*;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "customer_support_requests",
+       indexes = {
+           @Index(name = "idx_support_branch", columnList = "branch_id"),
+           @Index(name = "idx_support_customer", columnList = "customer_id"),
+           @Index(name = "idx_support_booking", columnList = "booking_id"),
+           @Index(name = "idx_support_status", columnList = "status")
+       })
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class CustomerSupportRequest {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "request_id")
+    private Long requestId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "customer_id", nullable = false)
+    private Long customerId;
+
+    @Column(name = "booking_id")
+    private Long bookingId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "request_type", nullable = false, length = 40)
+    private SupportRequestType requestType;
+
+    @Column(nullable = false)
+    private String subject;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SupportPriority priority;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private SupportStatus status;
+
+    @Column(name = "assigned_to")
+    private Long assignedTo;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/entity/Feedback.java =====
+package com.agacostays.support.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "feedback",
+       indexes = {
+           @Index(name = "idx_feedback_branch", columnList = "branch_id"),
+           @Index(name = "idx_feedback_booking", columnList = "booking_id"),
+           @Index(name = "idx_feedback_customer", columnList = "customer_id")
+       })
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class Feedback {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "feedback_id")
+    private Long feedbackId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "booking_id", nullable = false)
+    private Long bookingId;
+
+    @Column(name = "customer_id", nullable = false)
+    private Long customerId;
+
+    @Column(name = "hotel_rating")
+    private Integer hotelRating;
+
+    @Column(name = "hotel_comments", columnDefinition = "TEXT")
+    private String hotelComments;
+
+    @Column(name = "restaurant_rating")
+    private Integer restaurantRating;
+
+    @Column(name = "restaurant_comments", columnDefinition = "TEXT")
+    private String restaurantComments;
+
+    @Column(name = "feedback_type", length = 30)
+    private String feedbackType;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/entity/RestaurantFeedback.java =====
+package com.agacostays.support.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "restaurant_feedback",
+       indexes = {
+           @Index(name = "idx_rest_feedback_branch", columnList = "branch_id"),
+           @Index(name = "idx_rest_feedback_order", columnList = "order_id"),
+           @Index(name = "idx_rest_feedback_customer", columnList = "customer_id")
+       })
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class RestaurantFeedback {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "feedback_id")
+    private Long feedbackId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "booking_id", nullable = false)
+    private Long bookingId;
+
+    @Column(name = "order_id", nullable = false)
+    private Long orderId;
+
+    @Column(name = "customer_id", nullable = false)
+    private Long customerId;
+
+    @Column(name = "food_rating", nullable = false)
+    private Integer foodRating;
+
+    @Column(name = "taste_rating", nullable = false)
+    private Integer tasteRating;
+
+    @Column(name = "delivery_rating", nullable = false)
+    private Integer deliveryRating;
+
+    @Column(columnDefinition = "TEXT")
+    private String comments;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @PrePersist
+    void onCreate() {
+        createdAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/entity/SupportAssignment.java =====
+package com.agacostays.support.entity;
+
+import com.agacostays.support.enums.AssignmentStatus;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "support_assignments",
+       indexes = @Index(name = "idx_assignment_request", columnList = "request_id"))
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class SupportAssignment {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "assignment_id")
+    private Long assignmentId;
+
+    @Column(name = "request_id", nullable = false)
+    private Long requestId;
+
+    @Column(name = "assigned_to", nullable = false)
+    private Long assignedTo;
+
+    @Column(name = "assigned_by", nullable = false)
+    private Long assignedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "assignment_status", nullable = false, length = 30)
+    private AssignmentStatus assignmentStatus;
+
+    @Column(name = "assigned_at", nullable = false)
+    private OffsetDateTime assignedAt;
+
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
+
+    @PrePersist
+    void onCreate() {
+        if (assignedAt == null) assignedAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/enums/AssignmentStatus.java =====
+package com.agacostays.support.enums;
+
+public enum AssignmentStatus {
+    ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED
+}
+
+
+===== src/main/java/com/agacostays/support/enums/FeedbackType.java =====
+package com.agacostays.support.enums;
+
+public enum FeedbackType {
+    HOTEL, ROOM, SERVICE, GENERAL
+}
+
+
+===== src/main/java/com/agacostays/support/enums/RatingType.java =====
+package com.agacostays.support.enums;
+
+public enum RatingType {
+    HOTEL, ROOM, SERVICE, OVERALL
+}
+
+
+===== src/main/java/com/agacostays/support/enums/SupportPriority.java =====
+package com.agacostays.support.enums;
+
+public enum SupportPriority {
+    LOW, MEDIUM, HIGH, URGENT
+}
+
+
+===== src/main/java/com/agacostays/support/enums/SupportRequestType.java =====
+package com.agacostays.support.enums;
+
+public enum SupportRequestType {
+    ROOM, RESTAURANT, BOOKING, PAYMENT, BILLING, HOUSEKEEPING, GENERAL, OTHER
+}
+
+
+===== src/main/java/com/agacostays/support/enums/SupportStatus.java =====
+package com.agacostays.support.enums;
+
+public enum SupportStatus {
+    OPEN, IN_PROGRESS, RESOLVED, CLOSED, CANCELLED
+}
+
+
+===== src/main/java/com/agacostays/support/event/FeedbackSubmittedEvent.java =====
+package com.agacostays.support.event;
+
+public record FeedbackSubmittedEvent(Long feedbackId, Long branchId, Long bookingId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/support/event/RestaurantFeedbackSubmittedEvent.java =====
+package com.agacostays.support.event;
+
+public record RestaurantFeedbackSubmittedEvent(Long feedbackId, Long branchId, Long bookingId, Long orderId, Long customerId) {}
+
+
+===== src/main/java/com/agacostays/support/event/SupportRequestCreatedEvent.java =====
+package com.agacostays.support.event;
+
+public record SupportRequestCreatedEvent(Long requestId, Long branchId, Long customerId, Long bookingId, String priority) {}
+
+
+===== src/main/java/com/agacostays/support/event/SupportStatusChangedEvent.java =====
+package com.agacostays.support.event;
+
+public record SupportStatusChangedEvent(Long requestId, Long branchId, Long customerId, String status) {}
+
+
+===== src/main/java/com/agacostays/support/exception/AccessDeniedException.java =====
+package com.agacostays.support.exception;
+public class AccessDeniedException extends RuntimeException {
+    public AccessDeniedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/BusinessRuleException.java =====
+package com.agacostays.support.exception;
+public class BusinessRuleException extends RuntimeException {
+    public BusinessRuleException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/DuplicateResourceException.java =====
+package com.agacostays.support.exception;
+public class DuplicateResourceException extends RuntimeException {
+    public DuplicateResourceException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/GlobalExceptionHandler.java =====
+package com.agacostays.support.exception;
+
+import com.agacostays.support.dto.response.ApiResponse;
+import org.springframework.http.*;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ApiResponse<String>> validation(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream().findFirst()
+                .map(e -> e.getField()+": "+e.getDefaultMessage()).orElse("Validation failed");
+        return ResponseEntity.badRequest().body(ApiResponse.success(msg, null));
+    }
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ResponseEntity<ApiResponse<String>> notFound(ResourceNotFoundException ex) {
+        return ResponseEntity.status(404).body(ApiResponse.success(ex.getMessage(), null));
+    }
+    @ExceptionHandler({BusinessRuleException.class,InvalidStatusException.class,DuplicateResourceException.class})
+    ResponseEntity<ApiResponse<String>> conflict(RuntimeException ex) {
+        return ResponseEntity.status(409).body(ApiResponse.success(ex.getMessage(), null));
+    }
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ApiResponse<String>> denied(AccessDeniedException ex) {
+        return ResponseEntity.status(403).body(ApiResponse.success(ex.getMessage(), null));
+    }
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<ApiResponse<String>> generic(Exception ex) {
+        return ResponseEntity.status(500).body(ApiResponse.success("Internal support service error", null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/InvalidStatusException.java =====
+package com.agacostays.support.exception;
+public class InvalidStatusException extends RuntimeException {
+    public InvalidStatusException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/ResourceNotFoundException.java =====
+package com.agacostays.support.exception;
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/exception/SupportEscalationException.java =====
+package com.agacostays.support.exception;
+public class SupportEscalationException extends RuntimeException {
+    public SupportEscalationException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/support/mapper/CustomerSupportRequestMapper.java =====
+package com.agacostays.support.mapper;
+
+import com.agacostays.support.dto.response.SupportRequestResponse;
+import com.agacostays.support.entity.CustomerSupportRequest;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CustomerSupportRequestMapper {
+    public SupportRequestResponse toResponse(CustomerSupportRequest x) {
+        return SupportRequestResponse.builder()
+                .requestId(x.getRequestId()).branchId(x.getBranchId()).customerId(x.getCustomerId())
+                .bookingId(x.getBookingId()).requestType(x.getRequestType()).subject(x.getSubject())
+                .description(x.getDescription()).priority(x.getPriority()).status(x.getStatus())
+                .assignedTo(x.getAssignedTo()).createdAt(x.getCreatedAt()).updatedAt(x.getUpdatedAt())
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/mapper/FeedbackMapper.java =====
+package com.agacostays.support.mapper;
+import com.agacostays.support.dto.response.FeedbackResponse;
+import com.agacostays.support.entity.Feedback;
+import org.springframework.stereotype.Component;
+
+@Component
+public class FeedbackMapper {
+    public FeedbackResponse toResponse(Feedback x) {
+        return FeedbackResponse.builder().feedbackId(x.getFeedbackId()).branchId(x.getBranchId())
+                .bookingId(x.getBookingId()).customerId(x.getCustomerId()).hotelRating(x.getHotelRating())
+                .hotelComments(x.getHotelComments()).restaurantRating(x.getRestaurantRating())
+                .restaurantComments(x.getRestaurantComments()).feedbackType(x.getFeedbackType())
+                .createdAt(x.getCreatedAt()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/mapper/RestaurantFeedbackMapper.java =====
+package com.agacostays.support.mapper;
+import com.agacostays.support.dto.response.RestaurantFeedbackResponse;
+import com.agacostays.support.entity.RestaurantFeedback;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RestaurantFeedbackMapper {
+    public RestaurantFeedbackResponse toResponse(RestaurantFeedback x) {
+        return RestaurantFeedbackResponse.builder().feedbackId(x.getFeedbackId()).branchId(x.getBranchId())
+                .bookingId(x.getBookingId()).orderId(x.getOrderId()).customerId(x.getCustomerId())
+                .foodRating(x.getFoodRating()).tasteRating(x.getTasteRating())
+                .deliveryRating(x.getDeliveryRating()).comments(x.getComments()).createdAt(x.getCreatedAt())
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/mapper/SupportAssignmentMapper.java =====
+package com.agacostays.support.mapper;
+import com.agacostays.support.dto.response.SupportAssignmentResponse;
+import com.agacostays.support.entity.SupportAssignment;
+import org.springframework.stereotype.Component;
+
+@Component
+public class SupportAssignmentMapper {
+    public SupportAssignmentResponse toResponse(SupportAssignment x) {
+        return SupportAssignmentResponse.builder().assignmentId(x.getAssignmentId()).requestId(x.getRequestId())
+                .assignedTo(x.getAssignedTo()).assignedBy(x.getAssignedBy()).assignmentStatus(x.getAssignmentStatus())
+                .assignedAt(x.getAssignedAt()).completedAt(x.getCompletedAt()).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/producer/SupportFeedbackEventProducer.java =====
+package com.agacostays.support.producer;
+
+import com.agacostays.support.constants.KafkaTopicConstants;
+import com.agacostays.support.entity.*;
+import com.agacostays.support.event.*;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class SupportFeedbackEventProducer {
+
+    private final KafkaTemplate<String,Object> kafka;
+
+    public SupportFeedbackEventProducer(KafkaTemplate<String,Object> kafka) {
+        this.kafka=kafka;
+    }
+
+    public void supportCreated(CustomerSupportRequest r) {
+        kafka.send(KafkaTopicConstants.SUPPORT_REQUEST_CREATED, String.valueOf(r.getRequestId()),
+                new SupportRequestCreatedEvent(r.getRequestId(),r.getBranchId(),r.getCustomerId(),
+                        r.getBookingId(),r.getPriority().name()));
+    }
+
+    public void supportStatusChanged(CustomerSupportRequest r, Object oldStatus, String remarks) {
+        kafka.send(KafkaTopicConstants.SUPPORT_STATUS_CHANGED, String.valueOf(r.getRequestId()),
+                new SupportStatusChangedEvent(r.getRequestId(),r.getBranchId(),r.getCustomerId(),r.getStatus().name()));
+    }
+
+    public void feedbackSubmitted(Feedback f) {
+        kafka.send(KafkaTopicConstants.FEEDBACK_SUBMITTED, String.valueOf(f.getFeedbackId()),
+                new FeedbackSubmittedEvent(f.getFeedbackId(),f.getBranchId(),f.getBookingId(),f.getCustomerId()));
+    }
+
+    public void restaurantFeedbackSubmitted(RestaurantFeedback f) {
+        kafka.send(KafkaTopicConstants.RESTAURANT_FEEDBACK_SUBMITTED, String.valueOf(f.getFeedbackId()),
+                new RestaurantFeedbackSubmittedEvent(f.getFeedbackId(),f.getBranchId(),f.getBookingId(),
+                        f.getOrderId(),f.getCustomerId()));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/repository/CustomerSupportRequestRepository.java =====
+package com.agacostays.support.repository;
+
+import com.agacostays.support.entity.CustomerSupportRequest;
+import com.agacostays.support.enums.SupportStatus;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface CustomerSupportRequestRepository extends JpaRepository<CustomerSupportRequest, Long> {
+    List<CustomerSupportRequest> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    List<CustomerSupportRequest> findByBranchIdOrderByCreatedAtDesc(Long branchId);
+    Page<CustomerSupportRequest> findByBranchId(Long branchId, Pageable pageable);
+    Page<CustomerSupportRequest> findByBranchIdAndStatus(Long branchId, SupportStatus status, Pageable pageable);
+    List<CustomerSupportRequest> findByStatusIn(List<SupportStatus> statuses);
+}
+
+
+===== src/main/java/com/agacostays/support/repository/FeedbackRepository.java =====
+package com.agacostays.support.repository;
+
+import com.agacostays.support.entity.Feedback;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
+    List<Feedback> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    List<Feedback> findByBranchIdOrderByCreatedAtDesc(Long branchId);
+    Optional<Feedback> findByBookingIdAndCustomerId(Long bookingId, Long customerId);
+}
+
+
+===== src/main/java/com/agacostays/support/repository/RestaurantFeedbackRepository.java =====
+package com.agacostays.support.repository;
+
+import com.agacostays.support.entity.RestaurantFeedback;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface RestaurantFeedbackRepository extends JpaRepository<RestaurantFeedback, Long> {
+    List<RestaurantFeedback> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    List<RestaurantFeedback> findByBranchIdOrderByCreatedAtDesc(Long branchId);
+    List<RestaurantFeedback> findByOrderIdOrderByCreatedAtDesc(Long orderId);
+    Optional<RestaurantFeedback> findByOrderIdAndCustomerId(Long orderId, Long customerId);
+}
+
+
+===== src/main/java/com/agacostays/support/repository/SupportAssignmentRepository.java =====
+package com.agacostays.support.repository;
+
+import com.agacostays.support.entity.SupportAssignment;
+import com.agacostays.support.enums.AssignmentStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface SupportAssignmentRepository extends JpaRepository<SupportAssignment, Long> {
+    Optional<SupportAssignment> findByRequestId(Long requestId);
+    List<SupportAssignment> findByAssignedToAndAssignmentStatus(Long assignedTo, AssignmentStatus status);
+}
+
+
+===== src/main/java/com/agacostays/support/scheduler/SupportEscalationScheduler.java =====
+package com.agacostays.support.scheduler;
+
+import com.agacostays.support.entity.CustomerSupportRequest;
+import com.agacostays.support.enums.SupportPriority;
+import com.agacostays.support.enums.SupportStatus;
+import com.agacostays.support.exception.SupportEscalationException;
+import com.agacostays.support.repository.CustomerSupportRequestRepository;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+@Component
+public class SupportEscalationScheduler {
+
+    private final CustomerSupportRequestRepository repo;
+
+    public SupportEscalationScheduler(CustomerSupportRequestRepository repo) {
+        this.repo=repo;
+    }
+
+    @Scheduled(fixedDelay = 300000)
+    @Transactional
+    public void escalateOpenRequests() {
+        List<CustomerSupportRequest> open = repo.findByStatusIn(
+                List.of(SupportStatus.OPEN, SupportStatus.IN_PROGRESS));
+
+        OffsetDateTime threshold = OffsetDateTime.now().minusHours(24);
+
+        for (CustomerSupportRequest request : open) {
+            if (request.getCreatedAt() != null
+                    && request.getCreatedAt().isBefore(threshold)
+                    && request.getPriority() != SupportPriority.URGENT) {
+                request.setPriority(SupportPriority.URGENT);
+                repo.save(request);
+            }
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/AccessDeniedHandlerImpl.java =====
+package com.agacostays.support.security;
+
+import jakarta.servlet.http.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+
+@Component
+public class AccessDeniedHandlerImpl implements AccessDeniedHandler {
+    @Override public void handle(HttpServletRequest req, HttpServletResponse res, AccessDeniedException e) throws IOException {
+        res.setStatus(403); res.setContentType("application/json");
+        res.getWriter().write("{\"status\":\"error\",\"message\":\"Access denied\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/AuthenticationEntryPointHandler.java =====
+package com.agacostays.support.security;
+
+import jakarta.servlet.http.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+
+@Component
+public class AuthenticationEntryPointHandler implements AuthenticationEntryPoint {
+    @Override public void commence(HttpServletRequest req, HttpServletResponse res, AuthenticationException e) throws IOException {
+        res.setStatus(401); res.setContentType("application/json");
+        res.getWriter().write("{\"status\":\"error\",\"message\":\"Authentication required\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/BranchAccessValidator.java =====
+package com.agacostays.support.security;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class BranchAccessValidator {
+    public void validate(Long requestedBranchId, Long assignedBranchId) {
+        if (assignedBranchId == null || !requestedBranchId.equals(assignedBranchId)) {
+            throw new com.agacostays.support.exception.AccessDeniedException("Branch access denied");
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/CurrentUserProvider.java =====
+package com.agacostays.support.security;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CurrentUserProvider {
+    public Long userId() {
+        return Long.valueOf(SecurityContextHolder.getContext().getAuthentication().getName());
+    }
+    public String role() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .findFirst().map(a -> a.getAuthority().replace("ROLE_", "")).orElse("UNKNOWN");
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/JwtAuthenticationFilter.java =====
+package com.agacostays.support.security;
+
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private final JwtTokenProvider provider;
+    public JwtAuthenticationFilter(JwtTokenProvider provider) { this.provider = provider; }
+
+    @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                               FilterChain chain) throws ServletException, IOException {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
+            if (provider.valid(token)) {
+                var claims = provider.parse(token);
+                List<String> roles = new ArrayList<>();
+                Object roleClaim = claims.get("roles");
+                if (roleClaim instanceof Collection<?> c) c.forEach(v -> roles.add(String.valueOf(v)));
+                else if (roleClaim != null) roles.add(String.valueOf(roleClaim));
+
+                var authorities = roles.stream()
+                        .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                        .map(SimpleGrantedAuthority::new).collect(Collectors.toList());
+
+                var auth = new UsernamePasswordAuthenticationToken(
+                        claims.getSubject(), null, authorities);
+                auth.setDetails(claims);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        }
+        chain.doFilter(request, response);
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/JwtTokenProvider.java =====
+package com.agacostays.support.security;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+
+@Component
+public class JwtTokenProvider {
+    private final SecretKey key;
+    public JwtTokenProvider(@Value("${security.jwt.secret}") String secret) {
+        key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+    public Claims parse(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+    }
+    public boolean valid(String token) {
+        try { parse(token); return true; } catch (Exception e) { return false; }
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/MethodSecurityConfig.java =====
+package com.agacostays.support.security;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
+@Configuration
+@EnableMethodSecurity
+public class MethodSecurityConfig {}
+
+
+===== src/main/java/com/agacostays/support/security/RoleBasedAccessService.java =====
+package com.agacostays.support.security;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class RoleBasedAccessService {
+    public boolean isStaff(String role) {
+        return switch (role) {
+            case "MANAGER","RECEPTIONIST","RESTAURANT_ADMIN","CHEF","SERVING_STAFF","HOUSEKEEPING_STAFF","ROOT_ADMIN" -> true;
+            default -> false;
+        };
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/security/SupportFeedbackSecurityConfig.java =====
+package com.agacostays.support.security;
+
+import org.springframework.context.annotation.*;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SupportFeedbackSecurityConfig {
+    @Bean
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtFilter,
+            AuthenticationEntryPointHandler entryPoint,
+            AccessDeniedHandlerImpl denied) throws Exception {
+
+        http.csrf(c -> c.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(a -> a
+                .requestMatchers("/actuator/**").permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(denied))
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/service/CustomerSupportService.java =====
+package com.agacostays.support.service;
+
+import com.agacostays.support.dto.request.*;
+import com.agacostays.support.dto.response.*;
+import org.springframework.data.domain.Pageable;
+import java.util.List;
+
+public interface CustomerSupportService {
+    SupportRequestResponse create(CreateSupportRequest request);
+    List<SupportRequestResponse> myRequests();
+    SupportRequestResponse get(Long requestId);
+    SupportRequestResponse updateStatus(Long requestId, UpdateSupportStatusRequest request);
+    SupportRequestResponse assign(Long requestId, AssignSupportRequest request);
+    PageResponse<SupportRequestResponse> search(Long branchId, Pageable pageable);
+}
+
+
+===== src/main/java/com/agacostays/support/service/FeedbackService.java =====
+package com.agacostays.support.service;
+import com.agacostays.support.dto.request.FeedbackRequest;
+import com.agacostays.support.dto.response.FeedbackResponse;
+import java.util.List;
+
+public interface FeedbackService {
+    FeedbackResponse create(FeedbackRequest request);
+    List<FeedbackResponse> myFeedback();
+    List<FeedbackResponse> byBranch(Long branchId);
+    FeedbackResponse update(Long feedbackId, FeedbackRequest request);
+    void delete(Long feedbackId);
+}
+
+
+===== src/main/java/com/agacostays/support/service/RestaurantFeedbackService.java =====
+package com.agacostays.support.service;
+
+import com.agacostays.support.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.support.dto.response.RestaurantFeedbackResponse;
+import java.util.List;
+
+public interface RestaurantFeedbackService {
+    RestaurantFeedbackResponse create(RestaurantFeedbackRequest request);
+    List<RestaurantFeedbackResponse> byMyOrders();
+    List<RestaurantFeedbackResponse> byBranch(Long branchId);
+    List<RestaurantFeedbackResponse> byOrder(Long orderId);
+}
+
+
+===== src/main/java/com/agacostays/support/service/SupportAssignmentService.java =====
+package com.agacostays.support.service;
+import com.agacostays.support.dto.request.AssignSupportRequest;
+import com.agacostays.support.dto.response.SupportAssignmentResponse;
+
+public interface SupportAssignmentService {
+    SupportAssignmentResponse assign(Long requestId, AssignSupportRequest request);
+}
+
+
+===== src/main/java/com/agacostays/support/service/impl/CustomerSupportServiceImpl.java =====
+package com.agacostays.support.service.impl;
+
+import com.agacostays.support.client.BookingServiceClient;
+import com.agacostays.support.dto.request.*;
+import com.agacostays.support.dto.response.*;
+import com.agacostays.support.entity.CustomerSupportRequest;
+import com.agacostays.support.enums.SupportStatus;
+import com.agacostays.support.exception.*;
+import com.agacostays.support.mapper.CustomerSupportRequestMapper;
+import com.agacostays.support.producer.SupportFeedbackEventProducer;
+import com.agacostays.support.repository.CustomerSupportRequestRepository;
+import com.agacostays.support.security.CurrentUserProvider;
+import com.agacostays.support.service.CustomerSupportService;
+import com.agacostays.support.validation.SupportFeedbackValidationService;
+import org.springframework.data.domain.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+public class CustomerSupportServiceImpl implements CustomerSupportService {
+
+    private final CustomerSupportRequestRepository repo;
+    private final CustomerSupportRequestMapper mapper;
+    private final CurrentUserProvider currentUser;
+    private final BookingServiceClient bookingClient;
+    private final SupportFeedbackEventProducer producer;
+    private final SupportFeedbackValidationService validation;
+
+    public CustomerSupportServiceImpl(CustomerSupportRequestRepository repo,
+                                      CustomerSupportRequestMapper mapper,
+                                      CurrentUserProvider currentUser,
+                                      BookingServiceClient bookingClient,
+                                      SupportFeedbackEventProducer producer,
+                                      SupportFeedbackValidationService validation) {
+        this.repo = repo;
+        this.mapper = mapper;
+        this.currentUser = currentUser;
+        this.bookingClient = bookingClient;
+        this.producer = producer;
+        this.validation = validation;
+    }
+
+    @Override
+    @Transactional
+    public SupportRequestResponse create(CreateSupportRequest request) {
+        Long customerId = currentUser.userId();
+
+        if (request.getBookingId() != null) {
+            try {
+                var booking = bookingClient.getBooking(request.getBookingId());
+                if (!customerId.equals(booking.customerId())) {
+                    throw new AccessDeniedException("Booking does not belong to current customer");
+                }
+                if (request.getBranchId() != null && !request.getBranchId().equals(booking.branchId())) {
+                    throw new BusinessRuleException("Booking does not belong to requested branch");
+                }
+            } catch (AccessDeniedException | BusinessRuleException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                throw new BusinessRuleException("Booking could not be validated");
+            }
+        }
+
+        if (request.getBranchId() == null) {
+            throw new BusinessRuleException("branchId is required for a support request");
+        }
+
+        CustomerSupportRequest entity = CustomerSupportRequest.builder()
+                .branchId(request.getBranchId())
+                .customerId(customerId)
+                .bookingId(request.getBookingId())
+                .requestType(request.getRequestType())
+                .subject(request.getSubject())
+                .description(request.getDescription())
+                .priority(request.getPriority())
+                .status(SupportStatus.OPEN)
+                .build();
+
+        CustomerSupportRequest saved = repo.save(entity);
+        producer.supportCreated(saved);
+        return mapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SupportRequestResponse> myRequests() {
+        return repo.findByCustomerIdOrderByCreatedAtDesc(currentUser.userId())
+                .stream().map(mapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SupportRequestResponse get(Long requestId) {
+        CustomerSupportRequest entity = repo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Support request not found"));
+
+        if (entity.getCustomerId().equals(currentUser.userId())
+                || isStaffRole(currentUser.role())) {
+            return mapper.toResponse(entity);
+        }
+        throw new AccessDeniedException("You are not allowed to view this support request");
+    }
+
+    @Override
+    @Transactional
+    public SupportRequestResponse updateStatus(Long requestId, UpdateSupportStatusRequest request) {
+        CustomerSupportRequest entity = repo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Support request not found"));
+
+        SupportStatus old = entity.getStatus();
+
+        if (old == SupportStatus.CLOSED && request.getStatus() != SupportStatus.CLOSED) {
+            throw new InvalidStatusException("Closed support request cannot be reopened");
+        }
+
+        entity.setStatus(request.getStatus());
+        CustomerSupportRequest saved = repo.save(entity);
+        producer.supportStatusChanged(saved, old, request.getRemarks());
+        return mapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public SupportRequestResponse assign(Long requestId, AssignSupportRequest request) {
+        CustomerSupportRequest entity = repo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Support request not found"));
+
+        entity.setAssignedTo(request.getAssignedTo());
+        if (entity.getStatus() == SupportStatus.OPEN) {
+            entity.setStatus(SupportStatus.IN_PROGRESS);
+        }
+
+        CustomerSupportRequest saved = repo.save(entity);
+        producer.supportStatusChanged(saved, entity.getStatus(), "Assigned to " + request.getAssignedTo());
+        return mapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<SupportRequestResponse> search(Long branchId, Pageable pageable) {
+        Page<CustomerSupportRequest> page = repo.findByBranchId(branchId, pageable);
+
+        return PageResponse.<SupportRequestResponse>builder()
+                .content(page.getContent().stream().map(mapper::toResponse).toList())
+                .page(page.getNumber()).size(page.getSize())
+                .totalElements(page.getTotalElements()).totalPages(page.getTotalPages()).build();
+    }
+
+    private boolean isStaffRole(String role) {
+        return switch (role) {
+            case "ROOT_ADMIN","MANAGER","RECEPTIONIST","RESTAURANT_ADMIN","CHEF","SERVING_STAFF","HOUSEKEEPING_STAFF" -> true;
+            default -> false;
+        };
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/service/impl/FeedbackServiceImpl.java =====
+package com.agacostays.support.service.impl;
+
+import com.agacostays.support.client.BookingServiceClient;
+import com.agacostays.support.dto.request.FeedbackRequest;
+import com.agacostays.support.dto.response.FeedbackResponse;
+import com.agacostays.support.entity.Feedback;
+import com.agacostays.support.exception.*;
+import com.agacostays.support.mapper.FeedbackMapper;
+import com.agacostays.support.producer.SupportFeedbackEventProducer;
+import com.agacostays.support.repository.FeedbackRepository;
+import com.agacostays.support.security.CurrentUserProvider;
+import com.agacostays.support.service.FeedbackService;
+import com.agacostays.support.validation.SupportFeedbackValidationService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class FeedbackServiceImpl implements FeedbackService {
+
+    private final FeedbackRepository repo;
+    private final BookingServiceClient bookingClient;
+    private final FeedbackMapper mapper;
+    private final CurrentUserProvider currentUser;
+    private final SupportFeedbackEventProducer producer;
+    private final SupportFeedbackValidationService validation;
+
+    public FeedbackServiceImpl(FeedbackRepository repo, BookingServiceClient bookingClient,
+                                FeedbackMapper mapper, CurrentUserProvider currentUser,
+                                SupportFeedbackEventProducer producer,
+                                SupportFeedbackValidationService validation) {
+        this.repo=repo; this.bookingClient=bookingClient; this.mapper=mapper;
+        this.currentUser=currentUser; this.producer=producer; this.validation=validation;
+    }
+
+    @Override @Transactional
+    public FeedbackResponse create(FeedbackRequest req) {
+        Long customerId=currentUser.userId();
+
+        var booking;
+        try { booking=bookingClient.getBooking(req.getBookingId()); }
+        catch(Exception e){ throw new BusinessRuleException("Booking could not be validated"); }
+
+        if(!customerId.equals(booking.customerId())) throw new AccessDeniedException("Booking does not belong to current customer");
+        if(!"CHECKED_OUT".equalsIgnoreCase(booking.status()))
+            throw new BusinessRuleException("Hotel feedback requires a completed stay");
+
+        if(repo.findByBookingIdAndCustomerId(req.getBookingId(), customerId).isPresent())
+            throw new DuplicateResourceException("Feedback already exists for this booking");
+
+        validation.rating(req.getHotelRating(),"hotelRating");
+        validation.rating(req.getRestaurantRating(),"restaurantRating");
+
+        Feedback f=Feedback.builder()
+                .branchId(booking.branchId()).bookingId(req.getBookingId()).customerId(customerId)
+                .hotelRating(req.getHotelRating()).hotelComments(req.getHotelComments())
+                .restaurantRating(req.getRestaurantRating()).restaurantComments(req.getRestaurantComments())
+                .feedbackType(req.getFeedbackType()).build();
+
+        Feedback saved=repo.save(f);
+        producer.feedbackSubmitted(saved);
+        return mapper.toResponse(saved);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<FeedbackResponse> myFeedback() {
+        return repo.findByCustomerIdOrderByCreatedAtDesc(currentUser.userId()).stream()
+                .map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<FeedbackResponse> byBranch(Long branchId) {
+        return repo.findByBranchIdOrderByCreatedAtDesc(branchId).stream()
+                .map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional
+    public FeedbackResponse update(Long feedbackId, FeedbackRequest req) {
+        Feedback f=repo.findById(feedbackId).orElseThrow(()->new ResourceNotFoundException("Feedback not found"));
+        if(!f.getCustomerId().equals(currentUser.userId()))
+            throw new AccessDeniedException("You do not own this feedback");
+
+        validation.rating(req.getHotelRating(),"hotelRating");
+        validation.rating(req.getRestaurantRating(),"restaurantRating");
+
+        if(req.getHotelRating()!=null) f.setHotelRating(req.getHotelRating());
+        if(req.getHotelComments()!=null) f.setHotelComments(req.getHotelComments());
+        if(req.getRestaurantRating()!=null) f.setRestaurantRating(req.getRestaurantRating());
+        if(req.getRestaurantComments()!=null) f.setRestaurantComments(req.getRestaurantComments());
+        if(req.getFeedbackType()!=null) f.setFeedbackType(req.getFeedbackType());
+
+        return mapper.toResponse(repo.save(f));
+    }
+
+    @Override @Transactional
+    public void delete(Long feedbackId) {
+        Feedback f=repo.findById(feedbackId).orElseThrow(()->new ResourceNotFoundException("Feedback not found"));
+        String role=currentUser.role();
+        if(!f.getCustomerId().equals(currentUser.userId()) && !"ROOT_ADMIN".equals(role))
+            throw new AccessDeniedException("You cannot remove this feedback");
+        repo.delete(f);
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/service/impl/RestaurantFeedbackServiceImpl.java =====
+package com.agacostays.support.service.impl;
+
+import com.agacostays.support.client.RestaurantServiceClient;
+import com.agacostays.support.dto.request.RestaurantFeedbackRequest;
+import com.agacostays.support.dto.response.RestaurantFeedbackResponse;
+import com.agacostays.support.entity.RestaurantFeedback;
+import com.agacostays.support.exception.*;
+import com.agacostays.support.mapper.RestaurantFeedbackMapper;
+import com.agacostays.support.repository.RestaurantFeedbackRepository;
+import com.agacostays.support.security.CurrentUserProvider;
+import com.agacostays.support.service.RestaurantFeedbackService;
+import com.agacostays.support.producer.SupportFeedbackEventProducer;
+import com.agacostays.support.validation.SupportFeedbackValidationService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class RestaurantFeedbackServiceImpl implements RestaurantFeedbackService {
+
+    private final RestaurantFeedbackRepository repo;
+    private final RestaurantServiceClient restaurantClient;
+    private final RestaurantFeedbackMapper mapper;
+    private final CurrentUserProvider currentUser;
+    private final SupportFeedbackEventProducer producer;
+    private final SupportFeedbackValidationService validation;
+
+    public RestaurantFeedbackServiceImpl(RestaurantFeedbackRepository repo, RestaurantServiceClient restaurantClient,
+                                         RestaurantFeedbackMapper mapper, CurrentUserProvider currentUser,
+                                         SupportFeedbackEventProducer producer,
+                                         SupportFeedbackValidationService validation) {
+        this.repo=repo;this.restaurantClient=restaurantClient;this.mapper=mapper;this.currentUser=currentUser;
+        this.producer=producer;this.validation=validation;
+    }
+
+    @Override @Transactional
+    public RestaurantFeedbackResponse create(RestaurantFeedbackRequest req) {
+        Long customerId=currentUser.userId();
+
+        var order;
+        try { order=restaurantClient.getOrder(req.getOrderId()); }
+        catch(Exception e){ throw new BusinessRuleException("Restaurant order could not be validated"); }
+
+        if(order.customerId()==null || !customerId.equals(order.customerId()))
+            throw new AccessDeniedException("Order does not belong to current customer");
+
+        if(!"DELIVERED".equalsIgnoreCase(order.status()))
+            throw new BusinessRuleException("Restaurant feedback requires a delivered order");
+
+        if(repo.findByOrderIdAndCustomerId(req.getOrderId(),customerId).isPresent())
+            throw new DuplicateResourceException("Restaurant feedback already exists for this order");
+
+        validation.rating(req.getFoodRating(),"foodRating");
+        validation.rating(req.getTasteRating(),"tasteRating");
+        validation.rating(req.getDeliveryRating(),"deliveryRating");
+
+        RestaurantFeedback f=RestaurantFeedback.builder()
+                .branchId(order.branchId()).bookingId(order.bookingId()).orderId(req.getOrderId())
+                .customerId(customerId).foodRating(req.getFoodRating()).tasteRating(req.getTasteRating())
+                .deliveryRating(req.getDeliveryRating()).comments(req.getComments()).build();
+
+        RestaurantFeedback saved=repo.save(f);
+        producer.restaurantFeedbackSubmitted(saved);
+        return mapper.toResponse(saved);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<RestaurantFeedbackResponse> byMyOrders() {
+        return repo.findByCustomerIdOrderByCreatedAtDesc(currentUser.userId()).stream()
+                .map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<RestaurantFeedbackResponse> byBranch(Long branchId) {
+        return repo.findByBranchIdOrderByCreatedAtDesc(branchId).stream()
+                .map(mapper::toResponse).toList();
+    }
+
+    @Override @Transactional(readOnly=true)
+    public List<RestaurantFeedbackResponse> byOrder(Long orderId) {
+        return repo.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(mapper::toResponse).toList();
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/service/impl/SupportAssignmentServiceImpl.java =====
+package com.agacostays.support.service.impl;
+
+import com.agacostays.support.dto.request.AssignSupportRequest;
+import com.agacostays.support.dto.response.SupportAssignmentResponse;
+import com.agacostays.support.entity.SupportAssignment;
+import com.agacostays.support.enums.*;
+import com.agacostays.support.exception.ResourceNotFoundException;
+import com.agacostays.support.mapper.SupportAssignmentMapper;
+import com.agacostays.support.repository.*;
+import com.agacostays.support.security.CurrentUserProvider;
+import com.agacostays.support.service.SupportAssignmentService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class SupportAssignmentServiceImpl implements SupportAssignmentService {
+
+    private final SupportAssignmentRepository assignmentRepo;
+    private final CustomerSupportRequestRepository requestRepo;
+    private final CurrentUserProvider currentUser;
+    private final SupportAssignmentMapper mapper;
+
+    public SupportAssignmentServiceImpl(SupportAssignmentRepository assignmentRepo,
+                                        CustomerSupportRequestRepository requestRepo,
+                                        CurrentUserProvider currentUser,
+                                        SupportAssignmentMapper mapper) {
+        this.assignmentRepo=assignmentRepo;this.requestRepo=requestRepo;this.currentUser=currentUser;this.mapper=mapper;
+    }
+
+    @Override @Transactional
+    public SupportAssignmentResponse assign(Long requestId, AssignSupportRequest request) {
+        requestRepo.findById(requestId)
+                .orElseThrow(()->new ResourceNotFoundException("Support request not found"));
+
+        SupportAssignment a=assignmentRepo.findByRequestId(requestId)
+                .orElseGet(()->SupportAssignment.builder().requestId(requestId).build());
+
+        a.setAssignedTo(request.getAssignedTo());
+        a.setAssignedBy(currentUser.userId());
+        a.setAssignmentStatus(AssignmentStatus.ASSIGNED);
+
+        return mapper.toResponse(assignmentRepo.save(a));
+    }
+}
+
+
+===== src/main/java/com/agacostays/support/util/DateRangeUtil.java =====
+package com.agacostays.support.util;
+import java.time.LocalDate;
+public final class DateRangeUtil {
+    private DateRangeUtil(){}
+    public static boolean valid(LocalDate start, LocalDate end){ return start!=null && end!=null && !end.isBefore(start); }
+}
+
+
+===== src/main/java/com/agacostays/support/util/SupportFeedbackUtil.java =====
+package com.agacostays.support.util;
+public final class SupportFeedbackUtil {
+    private SupportFeedbackUtil(){}
+    public static boolean validRating(Integer rating){ return rating!=null && rating>=1 && rating<=5; }
+}
+
+
+===== src/main/java/com/agacostays/support/validation/SupportFeedbackValidationService.java =====
+package com.agacostays.support.validation;
+
+import com.agacostays.support.exception.BusinessRuleException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class SupportFeedbackValidationService {
+    public void rating(Integer rating, String field) {
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new BusinessRuleException(field + " must be between 1 and 5");
+        }
+    }
+}
+
+
+===== src/main/resources/application-dev.properties =====
+spring.config.activate.on-profile=dev
+logging.level.com.agacostays.support=DEBUG
+
+
+===== src/main/resources/application-prod.properties =====
+spring.config.activate.on-profile=prod
+logging.level.root=INFO
+logging.level.com.agacostays.support=INFO
+
+
+===== src/main/resources/application.properties =====
+server.port=8091
+spring.application.name=support-feedback-service
+
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/support_db}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:postgres}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.open-in-view=false
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.properties.hibernate.format_sql=true
+
+spring.flyway.enabled=true
+spring.flyway.locations=classpath:db/migration
+
+spring.kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+spring.kafka.consumer.group-id=support-feedback-service
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.properties.spring.json.trusted.packages=com.agacostays.*
+
+services.booking.url=${BOOKING_SERVICE_URL:http://localhost:8086}
+services.restaurant.url=${RESTAURANT_SERVICE_URL:http://localhost:8087}
+services.notification.url=${NOTIFICATION_SERVICE_URL:http://localhost:8090}
+services.user.url=${USER_SERVICE_URL:http://localhost:8082}
+
+security.jwt.secret=${JWT_SECRET:change-this-development-secret-to-at-least-32-characters}
+
+management.endpoints.web.exposure.include=health,info,metrics,prometheus
+management.endpoint.health.show-details=when_authorized
+
+logging.level.com.agacostays.support=INFO
+
+
+===== src/main/resources/db/migration/V1__create_core_tables.sql =====
+CREATE TABLE customer_support_requests (
+    request_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
+    booking_id BIGINT,
+    request_type VARCHAR(40) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    priority VARCHAR(20) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    assigned_to BIGINT,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE feedback (
+    feedback_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    booking_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
+    hotel_rating INTEGER,
+    hotel_comments TEXT,
+    restaurant_rating INTEGER,
+    restaurant_comments TEXT,
+    feedback_type VARCHAR(30),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE restaurant_feedback (
+    feedback_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    booking_id BIGINT NOT NULL,
+    order_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
+    food_rating INTEGER NOT NULL,
+    taste_rating INTEGER NOT NULL,
+    delivery_rating INTEGER NOT NULL,
+    comments TEXT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE support_assignments (
+    assignment_id BIGSERIAL PRIMARY KEY,
+    request_id BIGINT NOT NULL,
+    assigned_to BIGINT NOT NULL,
+    assigned_by BIGINT NOT NULL,
+    assignment_status VARCHAR(30) NOT NULL,
+    assigned_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ
+);
+
+
+===== src/main/resources/db/migration/V2__create_indexes.sql =====
+CREATE INDEX idx_support_branch ON customer_support_requests(branch_id);
+CREATE INDEX idx_support_customer ON customer_support_requests(customer_id);
+CREATE INDEX idx_support_booking ON customer_support_requests(booking_id);
+CREATE INDEX idx_support_status ON customer_support_requests(status);
+
+CREATE INDEX idx_feedback_branch ON feedback(branch_id);
+CREATE INDEX idx_feedback_booking ON feedback(booking_id);
+CREATE INDEX idx_feedback_customer ON feedback(customer_id);
+
+CREATE INDEX idx_rest_feedback_branch ON restaurant_feedback(branch_id);
+CREATE INDEX idx_rest_feedback_order ON restaurant_feedback(order_id);
+CREATE INDEX idx_rest_feedback_customer ON restaurant_feedback(customer_id);
+
+CREATE INDEX idx_assignment_request ON support_assignments(request_id);
+
+
+===== src/main/resources/db/migration/V3__insert_default_data.sql =====
+-- No default support or feedback records are required.
+
+
+===== src/main/resources/logback-spring.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern></encoder>
+    </appender>
+    <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+</configuration>
+
+
+===== src/test/java/com/agacostays/support/SupportFeedbackServiceTest.java =====
+package com.agacostays.support;
+
+import org.junit.jupiter.api.Test;
+
+class SupportFeedbackServiceTest {
+    @Test
+    void smokeTest() {}
+}
+
+
+===== src/test/java/com/agacostays/support/integration/SupportFeedbackServiceIntegrationTest.java =====
+package com.agacostays.support.integration;
+
+import org.junit.jupiter.api.Test;
+
+class SupportFeedbackServiceIntegrationTest {
+    @Test
+    void integrationTestPlaceholder() {
+        // Add Testcontainers coverage when the complete cross-service test environment is available.
+    }
+}
+

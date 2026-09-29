@@ -1,0 +1,1 @@
+package com.agacostays.payroll.audit; public record AuditLogRequest(String action,Long actorId,Long branchId,Long resourceId,String details){}

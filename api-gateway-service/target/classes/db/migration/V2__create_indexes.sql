@@ -1,0 +1,1 @@
+-- No database objects are required by the API Gateway.

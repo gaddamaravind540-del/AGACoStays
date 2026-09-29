@@ -1,0 +1,1 @@
+package com.agacostays.billing.test.integration; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.*; class BillingServiceIntegrationTest{@Test void baseline(){assertTrue(true);}}

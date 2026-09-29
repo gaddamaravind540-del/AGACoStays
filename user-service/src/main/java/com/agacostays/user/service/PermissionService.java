@@ -1,0 +1,2 @@
+package com.agacostays.user.service;
+import com.agacostays.user.dto.request.*; import com.agacostays.user.dto.response.*; import java.util.List; public interface PermissionService { PermissionResponse create(CreatePermissionRequest r,Long actor); List<PermissionResponse> list(); }

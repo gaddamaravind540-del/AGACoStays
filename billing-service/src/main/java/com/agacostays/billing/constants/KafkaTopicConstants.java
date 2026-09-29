@@ -1,0 +1,1 @@
+package com.agacostays.billing.constants;public final class KafkaTopicConstants{private KafkaTopicConstants(){}public static final String BILLING_EVENTS="billing.events";public static final String CHECKOUT_COMPLETED="checkout.completed";public static final String PAYMENT_SUCCESS="payment.success";public static final String FOOD_DELIVERED="food.delivered";}

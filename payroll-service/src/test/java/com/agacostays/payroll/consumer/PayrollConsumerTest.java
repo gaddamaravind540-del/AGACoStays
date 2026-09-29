@@ -1,0 +1,1 @@
+package com.agacostays.payroll.consumer; import org.junit.jupiter.api.Test; import static org.junit.jupiter.api.Assertions.assertNotNull; class PayrollConsumerTest{@Test void load(){assertNotNull(AttendanceMarkedEventConsumer.class);}}

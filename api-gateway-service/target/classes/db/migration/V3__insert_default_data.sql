@@ -1,0 +1,1 @@
+-- No default database data is required by the API Gateway.

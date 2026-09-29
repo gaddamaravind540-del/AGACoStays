@@ -1,0 +1,1 @@
+package com.agacostays.payroll.repository; import com.agacostays.payroll.entity.StaffBankAccount; import org.springframework.data.jpa.repository.JpaRepository; import java.util.Optional; public interface StaffBankAccountRepository extends JpaRepository<StaffBankAccount,Long>{Optional<StaffBankAccount> findByStaffId(Long staffId);}

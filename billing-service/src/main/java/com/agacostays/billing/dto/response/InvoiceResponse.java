@@ -1,0 +1,1 @@
+package com.agacostays.billing.dto.response; import java.time.OffsetDateTime; public record InvoiceResponse(Long invoiceId,Long billId,String invoiceNumber,String invoiceStatus,String invoiceUrl,OffsetDateTime generatedAt){}

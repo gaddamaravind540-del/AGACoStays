@@ -1,0 +1,4 @@
+package com.agacostays.billing.entity;
+import com.agacostays.billing.enums.ChargeType;import jakarta.persistence.*;import lombok.*;import java.math.BigDecimal;import java.time.OffsetDateTime;
+@Entity @Table(name="bill_charges") @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class BillCharge{ @Id @GeneratedValue(strategy=GenerationType.IDENTITY) @Column(name="charge_id") Long chargeId; @Column(name="bill_id",nullable=false) Long billId; @Enumerated(EnumType.STRING) @Column(name="charge_type",nullable=false) ChargeType chargeType; @Column(nullable=false) String description; @Column(name="reference_id") String referenceId; @Column(nullable=false,precision=14,scale=2) BigDecimal amount; @Column(name="created_at",nullable=false) OffsetDateTime createdAt; @PrePersist void create(){createdAt=OffsetDateTime.now();} }

@@ -1,0 +1,15 @@
+services:
+  branch-postgres:
+    image: postgres:17-alpine
+    container_name: aga-costays-branch-postgres
+    environment:
+      POSTGRES_DB: branch_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - branch_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+volumes:
+  branch_postgres_data:

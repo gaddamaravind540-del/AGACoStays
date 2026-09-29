@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.response; import java.math.BigDecimal; public record PayrollSummaryResponse(Integer month,Integer year,long totalStaff,BigDecimal grossSalary,BigDecimal netSalary,long paidCount,long pendingCount,long failedCount){}

@@ -1,0 +1,11 @@
+CREATE INDEX idx_roles_name ON roles(role_name);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_phone ON users(phone);
+CREATE INDEX idx_refresh_token_hash ON refresh_tokens(token_hash);
+CREATE INDEX idx_refresh_user ON refresh_tokens(user_id);
+CREATE INDEX idx_password_reset_hash ON password_reset_tokens(token_hash);
+CREATE INDEX idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX idx_otp_destination ON otp_tokens(destination);
+CREATE INDEX idx_otp_hash ON otp_tokens(otp_hash);
+CREATE INDEX idx_login_audit_email ON login_audits(email);
+CREATE INDEX idx_login_audit_created ON login_audits(created_at);

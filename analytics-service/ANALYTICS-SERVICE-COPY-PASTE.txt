@@ -1,0 +1,22 @@
+AGA CoStays Analytics Service — STS SETUP
+
+1. Extract analytics-service-complete-properties.zip.
+2. Spring Tool Suite -> File -> Import -> Existing Maven Projects.
+3. Select the analytics-service folder.
+4. Create PostgreSQL database:
+   CREATE DATABASE analytics_db;
+5. Update src/main/resources/application.properties if your database credentials differ.
+6. Start Kafka on localhost:9092 so analytics projections can consume business events.
+7. Run AnalyticsServiceApplication.java as Spring Boot App.
+8. Swagger:
+   http://localhost:8094/swagger-ui.html
+
+Project:
+Application: analytics-service
+Package: com.agacostays.analytics
+Main class: AnalyticsServiceApplication
+Port: 8094
+Database: analytics_db
+
+Member 3 sequence:
+Payment -> Billing -> Attendance -> Payroll -> Analytics

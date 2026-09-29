@@ -1,0 +1,1 @@
+package com.agacostays.payment.service; import com.agacostays.payment.dto.request.PaymentWebhookRequest; public interface PaymentWebhookService { void process(PaymentWebhookRequest request,String rawPayload,String signatureHeader); }

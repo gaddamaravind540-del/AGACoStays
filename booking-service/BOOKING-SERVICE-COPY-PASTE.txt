@@ -1,0 +1,3334 @@
+
+===== .dockerignore =====
+target/
+.git/
+.idea/
+*.iml
+
+
+===== Dockerfile =====
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+COPY target/booking-service-0.0.1-SNAPSHOT.jar app.jar
+EXPOSE 8086
+ENTRYPOINT ["java","-jar","app.jar"]
+
+
+===== README.md =====
+# AGA CoStays Booking Service
+
+Base package: `com.agacostays.booking`
+
+Database: `booking_db`
+
+Port: `8086`
+
+This service owns the booking lifecycle: create, update, approve, reject, cancel,
+check-in, check-out, booking history and booking-time price snapshot.
+
+Configuration uses `application.properties`, `application-dev.properties`
+and `application-prod.properties`.
+
+## Main APIs
+
+POST   /api/hotel-branches/{branchId}/bookings
+POST   /api/hotel-branches/{branchId}/bookings/customer/{customerId}
+GET    /api/bookings/{bookingId}
+GET    /api/bookings/my-bookings
+GET    /api/hotel-branches/{branchId}/bookings
+PUT    /api/bookings/{bookingId}
+PUT    /api/bookings/{bookingId}/approve
+PUT    /api/bookings/{bookingId}/reject
+PUT    /api/bookings/{bookingId}/cancel
+POST   /api/bookings/{bookingId}/check-in
+POST   /api/bookings/{bookingId}/check-out
+GET    /api/bookings/{bookingId}/history
+GET    /api/hotel-branches/{branchId}/bookings/date-range
+
+
+===== pom.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.agacostays</groupId>
+    <artifactId>booking-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>booking-service</name>
+    <description>AGA CoStays Booking Microservice</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <jjwt.version>0.13.0</jjwt.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+
+===== src/main/java/com/agacostays/booking/BookingServiceApplication.java =====
+package com.agacostays.booking;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableFeignClients
+@EnableScheduling
+public class BookingServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(BookingServiceApplication.class, args);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/audit/AuditLogRequest.java =====
+package com.agacostays.booking.audit;
+
+import lombok.*;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class AuditLogRequest {
+    private Long userId;
+    private String roleName;
+    private String moduleName;
+    private String action;
+    private String description;
+}
+
+
+===== src/main/java/com/agacostays/booking/audit/BookingAuditHelper.java =====
+package com.agacostays.booking.audit;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class BookingAuditHelper {
+    public AuditLogRequest create(Long userId, String role, String action, String description) {
+        return AuditLogRequest.builder()
+                .userId(userId)
+                .roleName(role)
+                .moduleName("BOOKING")
+                .action(action)
+                .description(description)
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/client/BillingServiceClient.java =====
+package com.agacostays.booking.client;
+
+import com.agacostays.booking.dto.response.BillingResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name = "billing-service", url = "${services.billing.url}")
+public interface BillingServiceClient {
+
+    @PostMapping("/api/billing/bookings/{bookingId}")
+    BillingResponse createBookingCharge(@PathVariable Long bookingId);
+}
+
+
+===== src/main/java/com/agacostays/booking/client/NotificationServiceClient.java =====
+package com.agacostays.booking.client;
+
+import org.springframework.cloud.openfeign.FeignClient;
+
+@FeignClient(name = "notification-service", url = "${services.notification.url}")
+public interface NotificationServiceClient {
+    // The source architecture names this client; actual notification API is resolved by the Notification service contract.
+}
+
+
+===== src/main/java/com/agacostays/booking/client/PaymentServiceClient.java =====
+package com.agacostays.booking.client;
+
+import com.agacostays.booking.dto.response.PaymentStatusResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name = "payment-service", url = "${services.payment.url}")
+public interface PaymentServiceClient {
+
+    @GetMapping("/api/payments/booking/{bookingId}/status")
+    PaymentStatusResponse getBookingPaymentStatus(@PathVariable Long bookingId);
+}
+
+
+===== src/main/java/com/agacostays/booking/client/RoomServiceClient.java =====
+package com.agacostays.booking.client;
+
+import com.agacostays.booking.dto.response.RoomResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+
+@FeignClient(name = "room-service", url = "${services.room.url}")
+public interface RoomServiceClient {
+
+    @GetMapping("/api/hotel-branches/{branchId}/rooms/{roomId}")
+    RoomResponse getRoom(
+            @PathVariable Long branchId,
+            @PathVariable Long roomId
+    );
+
+    @GetMapping("/api/hotel-branches/{branchId}/rooms/availability")
+    RoomAvailabilityResponse checkAvailability(
+            @PathVariable Long branchId,
+            @RequestParam Long roomId,
+            @RequestParam LocalDate checkInDate,
+            @RequestParam LocalDate checkOutDate
+    );
+
+    record RoomAvailabilityResponse(Long roomId, boolean available, String status) {}
+}
+
+
+===== src/main/java/com/agacostays/booking/client/UserServiceClient.java =====
+package com.agacostays.booking.client;
+
+import com.agacostays.booking.dto.response.CustomerResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.*;
+
+@FeignClient(name = "user-service", url = "${services.user.url}")
+public interface UserServiceClient {
+
+    @GetMapping("/api/customers/{customerId}")
+    CustomerResponse getCustomer(@PathVariable Long customerId);
+}
+
+
+===== src/main/java/com/agacostays/booking/config/.gitkeep =====
+
+
+===== src/main/java/com/agacostays/booking/config/AppConfig.java =====
+package com.agacostays.booking.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class AppConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/config/FeignClientConfig.java =====
+package com.agacostays.booking.config;
+
+import feign.Logger;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class FeignClientConfig {
+
+    @Bean
+    Logger.Level feignLoggerLevel() {
+        return Logger.Level.BASIC;
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/config/JpaAuditingConfig.java =====
+package com.agacostays.booking.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class JpaAuditingConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/config/KafkaConsumerConfig.java =====
+package com.agacostays.booking.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class KafkaConsumerConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/config/KafkaProducerConfig.java =====
+package com.agacostays.booking.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class KafkaProducerConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/config/KafkaTopicConfig.java =====
+package com.agacostays.booking.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class KafkaTopicConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/config/OpenApiConfig.java =====
+package com.agacostays.booking.config;
+
+import io.swagger.v3.oas.models.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class OpenApiConfig {
+
+    @Bean
+    public OpenAPI bookingOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("AGA CoStays Booking Service API")
+                        .version("1.0")
+                        .description("Room reservation and booking lifecycle APIs"));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/constants/BookingConstants.java =====
+package com.agacostays.booking.constants;
+
+public final class BookingConstants {
+    private BookingConstants() {}
+    public static final int MIN_GUESTS = 1;
+    public static final int MAX_GUESTS = 20;
+    public static final int EXPIRY_MINUTES = 30;
+}
+
+
+===== src/main/java/com/agacostays/booking/constants/BookingRouteConstants.java =====
+package com.agacostays.booking.constants;
+
+public final class BookingRouteConstants {
+    private BookingRouteConstants() {}
+    public static final String BASE = "/api";
+}
+
+
+===== src/main/java/com/agacostays/booking/constants/BookingStatusConstants.java =====
+package com.agacostays.booking.constants;
+
+public final class BookingStatusConstants {
+    private BookingStatusConstants() {}
+    public static final String PENDING = "PENDING";
+    public static final String APPROVED = "APPROVED";
+    public static final String CHECKED_IN = "CHECKED_IN";
+    public static final String CHECKED_OUT = "CHECKED_OUT";
+    public static final String CANCELLED = "CANCELLED";
+}
+
+
+===== src/main/java/com/agacostays/booking/constants/HeaderConstants.java =====
+package com.agacostays.booking.constants;
+
+public final class HeaderConstants {
+    private HeaderConstants() {}
+    public static final String TRACE_ID = "X-Trace-Id";
+    public static final String CORRELATION_ID = "X-Correlation-Id";
+    public static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+}
+
+
+===== src/main/java/com/agacostays/booking/constants/KafkaTopicConstants.java =====
+package com.agacostays.booking.constants;
+
+public final class KafkaTopicConstants {
+    private KafkaTopicConstants() {}
+    public static final String BOOKING_CREATED = "booking-created";
+    public static final String BOOKING_APPROVED = "booking-approved";
+    public static final String BOOKING_REJECTED = "booking-rejected";
+    public static final String BOOKING_CANCELLED = "booking-cancelled";
+    public static final String CHECKIN_COMPLETED = "checkin-completed";
+    public static final String CHECKOUT_COMPLETED = "checkout-completed";
+    public static final String BOOKING_PAYMENT_STATUS_UPDATED = "booking-payment-status-updated";
+    public static final String BOOKING_STATUS_CHANGED = "booking-status-changed";
+}
+
+
+===== src/main/java/com/agacostays/booking/consumer/BillingGeneratedEventConsumer.java =====
+package com.agacostays.booking.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BillingGeneratedEventConsumer.java {
+
+    @KafkaListener(topics = "billing-generated", groupId = "booking-service")
+    public void handle(String message) {
+        // Event contract is consumed here after the upstream service finalizes its schema.
+        // Keep processing idempotent in the production implementation.
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/consumer/PaymentFailedEventConsumer.java =====
+package com.agacostays.booking.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class PaymentFailedEventConsumer.java {
+
+    @KafkaListener(topics = "payment-failed", groupId = "booking-service")
+    public void handle(String message) {
+        // Event contract is consumed here after the upstream service finalizes its schema.
+        // Keep processing idempotent in the production implementation.
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/consumer/PaymentSuccessEventConsumer.java =====
+package com.agacostays.booking.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class PaymentSuccessEventConsumer.java {
+
+    @KafkaListener(topics = "payment-success", groupId = "booking-service")
+    public void handle(String message) {
+        // Event contract is consumed here after the upstream service finalizes its schema.
+        // Keep processing idempotent in the production implementation.
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/consumer/RefundProcessedEventConsumer.java =====
+package com.agacostays.booking.consumer;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RefundProcessedEventConsumer.java {
+
+    @KafkaListener(topics = "refund-processed", groupId = "booking-service")
+    public void handle(String message) {
+        // Event contract is consumed here after the upstream service finalizes its schema.
+        // Keep processing idempotent in the production implementation.
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/controller/BookingController.java =====
+package com.agacostays.booking.controller;
+
+import com.agacostays.booking.constants.HeaderConstants;
+import com.agacostays.booking.dto.request.*;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.service.BookingService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api")
+public class BookingController {
+
+    private final BookingService bookingService;
+
+    public BookingController(BookingService bookingService) {
+        this.bookingService = bookingService;
+    }
+
+    @GetMapping("/bookings/{bookingId}")
+    public ResponseEntity<ApiResponse<BookingResponse>> get(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(ApiResponse.success("Booking fetched successfully", bookingService.getById(bookingId)));
+    }
+
+    @GetMapping("/bookings/my-bookings")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<java.util.List<BookingResponse>>> myBookings() {
+        return ResponseEntity.ok(ApiResponse.success("Bookings fetched successfully", bookingService.getMyBookings()));
+    }
+
+    @PutMapping("/bookings/{bookingId}")
+    public ResponseEntity<ApiResponse<BookingResponse>> update(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody UpdateBookingRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking updated successfully", bookingService.update(bookingId, request)));
+    }
+
+    @PutMapping("/bookings/{bookingId}/approve")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<BookingStatusResponse>> approve(
+            @PathVariable Long bookingId,
+            @RequestParam(required = false) String remarks) {
+        return ResponseEntity.ok(ApiResponse.success("Booking approved", bookingService.approve(bookingId, remarks)));
+    }
+
+    @PutMapping("/bookings/{bookingId}/reject")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<BookingStatusResponse>> reject(
+            @PathVariable Long bookingId,
+            @RequestParam(required = false) String remarks) {
+        return ResponseEntity.ok(ApiResponse.success("Booking rejected", bookingService.reject(bookingId, remarks)));
+    }
+
+    @PutMapping("/bookings/{bookingId}/cancel")
+    public ResponseEntity<ApiResponse<BookingStatusResponse>> cancel(
+            @PathVariable Long bookingId,
+            @RequestBody BookingCancelRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking cancelled", bookingService.cancel(bookingId, request)));
+    }
+    @GetMapping("/bookings/{bookingId}/history")
+    public ResponseEntity<ApiResponse<java.util.List<BookingHistoryResponse>>> history(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(ApiResponse.success("Booking history fetched", bookingService.history(bookingId)));
+    }
+
+    @GetMapping("/hotel-branches/{branchId}/bookings")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<PageResponse<BookingResponse>>> branchBookings(
+            @PathVariable Long branchId, Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Branch bookings fetched", bookingService.getBranchBookings(branchId, pageable)));
+    }
+
+    @GetMapping("/hotel-branches/{branchId}/bookings/date-range")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<java.util.List<BookingResponse>>> dateRange(
+            @PathVariable Long branchId,
+            @Valid BookingDateRangeRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Bookings fetched", bookingService.searchByDateRange(branchId, request)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/controller/BookingStatusController.java =====
+package com.agacostays.booking.controller;
+
+import com.agacostays.booking.dto.request.BookingStatusRequest;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.service.BookingService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/bookings")
+public class BookingStatusController {
+
+    private final BookingService bookingService;
+
+    public BookingStatusController(BookingService bookingService) {
+        this.bookingService = bookingService;
+    }
+
+    @PutMapping("/{bookingId}/status")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<BookingStatusResponse>> status(
+            @PathVariable Long bookingId,
+            @RequestBody BookingStatusRequest request) {
+
+        return switch (request.getStatus()) {
+            case APPROVED -> ResponseEntity.ok(ApiResponse.success(
+                    "Booking approved", bookingService.approve(bookingId, request.getRemarks())));
+            case REJECTED -> ResponseEntity.ok(ApiResponse.success(
+                    "Booking rejected", bookingService.reject(bookingId, request.getRemarks())));
+            default -> throw new IllegalArgumentException("Use dedicated API for this booking state");
+        };
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/controller/CheckInController.java =====
+package com.agacostays.booking.controller;
+
+import com.agacostays.booking.dto.request.CheckInRequest;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.service.CheckInService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/bookings")
+public class CheckInController {
+
+    private final CheckInService service;
+
+    public CheckInController(CheckInService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/{bookingId}/check-in")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<CheckInResponse>> checkIn(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody CheckInRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Check-in completed", service.checkIn(bookingId, request)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/controller/CheckOutController.java =====
+package com.agacostays.booking.controller;
+
+import com.agacostays.booking.dto.request.CheckOutRequest;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.service.CheckOutService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/bookings")
+public class CheckOutController {
+
+    private final CheckOutService service;
+
+    public CheckOutController(CheckOutService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/{bookingId}/check-out")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<CheckOutResponse>> checkOut(
+            @PathVariable Long bookingId,
+            @RequestBody CheckOutRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Checkout completed", service.checkOut(bookingId, request)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/controller/CustomerBookingController.java =====
+package com.agacostays.booking.controller;
+
+import com.agacostays.booking.constants.HeaderConstants;
+import com.agacostays.booking.dto.request.CreateBookingRequest;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.service.BookingService;
+import jakarta.validation.Valid;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/hotel-branches/{branchId}/bookings")
+public class CustomerBookingController {
+
+    private final BookingService bookingService;
+
+    public CustomerBookingController(BookingService bookingService) {
+        this.bookingService = bookingService;
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<BookingResponse>> create(
+            @PathVariable Long branchId,
+            @Valid @RequestBody CreateBookingRequest request,
+            @RequestHeader(value = HeaderConstants.IDEMPOTENCY_KEY, required = false) String idempotencyKey) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Booking created successfully",
+                        bookingService.create(branchId, request, idempotencyKey)));
+    }
+
+    @PostMapping("/customer/{customerId}")
+    @PreAuthorize("hasAnyRole('MANAGER','RECEPTIONIST')")
+    public ResponseEntity<ApiResponse<BookingResponse>> createForCustomer(
+            @PathVariable Long branchId,
+            @PathVariable Long customerId,
+            @Valid @RequestBody CreateBookingRequest request,
+            @RequestHeader(value = HeaderConstants.IDEMPOTENCY_KEY, required = false) String idempotencyKey) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Booking created for customer",
+                        bookingService.createForCustomer(branchId, customerId, request, idempotencyKey)));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/BookingCancelRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import com.agacostays.booking.enums.CancellationReason;
+import lombok.Data;
+
+@Data
+public class BookingCancelRequest {
+    private CancellationReason reason;
+    private String remarks;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/BookingDateRangeRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+import java.time.LocalDate;
+
+@Data
+public class BookingDateRangeRequest {
+    @NotNull
+    private LocalDate startDate;
+
+    @NotNull
+    private LocalDate endDate;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/BookingSearchRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import com.agacostays.booking.enums.BookingStatus;
+import lombok.Data;
+
+@Data
+public class BookingSearchRequest {
+    private BookingStatus status;
+    private Long customerId;
+    private Long roomId;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/BookingStatusRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import com.agacostays.booking.enums.BookingStatus;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class BookingStatusRequest {
+    @NotNull
+    private BookingStatus status;
+    private String remarks;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/CheckInRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import com.agacostays.booking.enums.GuestIdProofType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class CheckInRequest {
+
+    @NotNull
+    private GuestIdProofType guestIdProofType;
+
+    @NotBlank
+    private String guestIdProofNumber;
+
+    private String guestName;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/CheckOutRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import lombok.Data;
+
+@Data
+public class CheckOutRequest {
+    private String remarks;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/CreateBookingRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+@Data
+public class CreateBookingRequest {
+
+    @NotNull
+    private Long roomId;
+
+    private Long customerId;
+
+    @NotNull
+    @FutureOrPresent
+    private LocalDate checkInDate;
+
+    @NotNull
+    private LocalDate checkOutDate;
+
+    @NotNull
+    private LocalTime checkInTime;
+
+    @NotNull
+    private LocalTime checkOutTime;
+
+    @NotNull
+    @Min(1)
+    @Max(20)
+    private Integer numberOfGuests;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/CustomerBookingFilterRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import lombok.Data;
+
+import java.time.LocalDate;
+
+@Data
+public class CustomerBookingFilterRequest {
+    private Long customerId;
+    private LocalDate startDate;
+    private LocalDate endDate;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/request/UpdateBookingRequest.java =====
+package com.agacostays.booking.dto.request;
+
+import jakarta.validation.constraints.*;
+import lombok.Data;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+@Data
+public class UpdateBookingRequest {
+
+    private LocalDate checkInDate;
+    private LocalDate checkOutDate;
+    private LocalTime checkInTime;
+    private LocalTime checkOutTime;
+
+    @Min(1)
+    @Max(20)
+    private Integer numberOfGuests;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/ApiResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+@Getter @Setter @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class ApiResponse<T> {
+    private String status;
+    private String message;
+    private T data;
+
+    public static <T> ApiResponse<T> success(String message, T data) {
+        return ApiResponse.<T>builder().status("success").message(message).data(data).build();
+    }
+
+    public static <T> ApiResponse<T> error(String message, T data) {
+        return ApiResponse.<T>builder().status("error").message(message).data(data).build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BillingResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BillingResponse {
+    private Long bookingId;
+    private String status;
+    private BigDecimal totalAmount;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BookingHistoryResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import com.agacostays.booking.enums.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingHistoryResponse {
+    private Long historyId;
+    private Long bookingId;
+    private BookingAction action;
+    private BookingStatus bookingStatus;
+    private Long changedBy;
+    private String changedByRole;
+    private String remarks;
+    private OffsetDateTime createdAt;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BookingPriceResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingPriceResponse {
+    private Long bookingId;
+    private BigDecimal pricePerDay;
+    private Integer numberOfDays;
+    private BigDecimal totalAmount;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BookingResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import com.agacostays.booking.enums.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingResponse {
+    private Long bookingId;
+    private Long branchId;
+    private Long customerId;
+    private Long roomId;
+    private LocalDate checkInDate;
+    private LocalDate checkOutDate;
+    private LocalTime checkInTime;
+    private LocalTime checkOutTime;
+    private Integer numberOfGuests;
+    private Integer numberOfDays;
+    private BigDecimal pricePerDay;
+    private BigDecimal totalAmount;
+    private BookingStatus bookingStatus;
+    private BookingSource bookingSource;
+    private PaymentStatus paymentStatus;
+    private String guestName;
+    private String guestIdProofType;
+    private OffsetDateTime checkInCompletedAt;
+    private OffsetDateTime checkOutCompletedAt;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BookingStatusResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import com.agacostays.booking.enums.BookingStatus;
+import lombok.*;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingStatusResponse {
+    private Long bookingId;
+    private BookingStatus bookingStatus;
+    private String message;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/BookingSummaryResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import com.agacostays.booking.enums.BookingStatus;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingSummaryResponse {
+    private Long bookingId;
+    private Long roomId;
+    private Long customerId;
+    private LocalDate checkInDate;
+    private LocalDate checkOutDate;
+    private BookingStatus status;
+    private BigDecimal totalAmount;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/CheckInResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class CheckInResponse {
+    private Long bookingId;
+    private String status;
+    private OffsetDateTime completedAt;
+    private String guestName;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/CheckOutResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class CheckOutResponse {
+    private Long bookingId;
+    private String status;
+    private OffsetDateTime completedAt;
+    private String billingStatus;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/CustomerResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class CustomerResponse {
+    private Long customerId;
+    private String fullName;
+    private String email;
+    private String phone;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/PageResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+@Builder
+public class PageResponse<T> {
+    private List<T> content;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/PaymentStatusResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import com.agacostays.booking.enums.PaymentStatus;
+import lombok.*;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class PaymentStatusResponse {
+    private Long bookingId;
+    private PaymentStatus status;
+}
+
+
+===== src/main/java/com/agacostays/booking/dto/response/RoomResponse.java =====
+package com.agacostays.booking.dto.response;
+
+import lombok.*;
+
+import java.math.BigDecimal;
+
+@Data @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class RoomResponse {
+    private Long roomId;
+    private Long branchId;
+    private String roomNumber;
+    private String roomType;
+    private BigDecimal currentPricePerDay;
+    private String status;
+}
+
+
+===== src/main/java/com/agacostays/booking/entity/Booking.java =====
+package com.agacostays.booking.entity;
+
+import com.agacostays.booking.enums.BookingSource;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.enums.PaymentStatus;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "bookings",
+       indexes = {
+           @Index(name = "idx_booking_branch", columnList = "branch_id"),
+           @Index(name = "idx_booking_customer", columnList = "customer_id"),
+           @Index(name = "idx_booking_room", columnList = "room_id"),
+           @Index(name = "idx_booking_dates", columnList = "check_in_date,check_out_date")
+       })
+@Getter @Setter @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class Booking {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "booking_id")
+    private Long bookingId;
+
+    @Column(name = "branch_id", nullable = false)
+    private Long branchId;
+
+    @Column(name = "customer_id", nullable = false)
+    private Long customerId;
+
+    @Column(name = "room_id", nullable = false)
+    private Long roomId;
+
+    @Column(name = "check_in_date", nullable = false)
+    private LocalDate checkInDate;
+
+    @Column(name = "check_out_date", nullable = false)
+    private LocalDate checkOutDate;
+
+    @Column(name = "check_in_time", nullable = false)
+    private LocalTime checkInTime;
+
+    @Column(name = "check_out_time", nullable = false)
+    private LocalTime checkOutTime;
+
+    @Column(name = "number_of_guests", nullable = false)
+    private Integer numberOfGuests;
+
+    @Column(name = "number_of_days", nullable = false)
+    private Integer numberOfDays;
+
+    @Column(name = "price_per_day_at_booking", nullable = false, precision = 12, scale = 2)
+    private BigDecimal pricePerDayAtBooking;
+
+    @Column(name = "room_charges", nullable = false, precision = 12, scale = 2)
+    private BigDecimal roomCharges;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_status", nullable = false, length = 30)
+    private BookingStatus bookingStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 30)
+    private PaymentStatus paymentStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_source", nullable = false, length = 30)
+    private BookingSource bookingSource;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "guest_name")
+    private String guestName;
+
+    @Column(name = "guest_id_proof_type", length = 30)
+    private String guestIdProofType;
+
+    @Column(name = "guest_id_proof_number")
+    private String guestIdProofNumber;
+
+    @Column(name = "check_in_completed_at")
+    private OffsetDateTime checkInCompletedAt;
+
+    @Column(name = "check_out_completed_at")
+    private OffsetDateTime checkOutCompletedAt;
+
+    @Column(name = "cancellation_reason", length = 60)
+    private String cancellationReason;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/entity/BookingHistory.java =====
+package com.agacostays.booking.entity;
+
+import com.agacostays.booking.enums.BookingAction;
+import com.agacostays.booking.enums.BookingStatus;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "booking_history",
+       indexes = {
+           @Index(name = "idx_booking_history_booking", columnList = "booking_id")
+       })
+@Getter @Setter @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class BookingHistory {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "history_id")
+    private Long historyId;
+
+    @Column(name = "booking_id", nullable = false)
+    private Long bookingId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action", nullable = false, length = 40)
+    private BookingAction action;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_status", nullable = false, length = 30)
+    private BookingStatus bookingStatus;
+
+    @Column(name = "changed_by")
+    private Long changedBy;
+
+    @Column(name = "changed_by_role", length = 50)
+    private String changedByRole;
+
+    @Column(name = "remarks")
+    private String remarks;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = OffsetDateTime.now();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/BookingAction.java =====
+package com.agacostays.booking.enums;
+
+public enum BookingAction {
+    CREATED, UPDATED, APPROVED, REJECTED, CANCELLED, CHECKED_IN, CHECKED_OUT, PAYMENT_UPDATED
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/BookingSource.java =====
+package com.agacostays.booking.enums;
+
+public enum BookingSource {
+    WEBSITE, MOBILE_APP, RECEPTIONIST, MANAGER
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/BookingStatus.java =====
+package com.agacostays.booking.enums;
+
+public enum BookingStatus {
+    PENDING, APPROVED, REJECTED, CHECKED_IN, CHECKED_OUT, CANCELLED
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/CancellationReason.java =====
+package com.agacostays.booking.enums;
+
+public enum CancellationReason {
+    CUSTOMER_REQUEST, STAFF_REQUEST, PAYMENT_FAILED, ROOM_UNAVAILABLE, OTHER
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/CheckInStatus.java =====
+package com.agacostays.booking.enums;
+
+public enum CheckInStatus {
+    PENDING, COMPLETED, FAILED
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/CheckOutStatus.java =====
+package com.agacostays.booking.enums;
+
+public enum CheckOutStatus {
+    PENDING, COMPLETED, FAILED
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/GuestIdProofType.java =====
+package com.agacostays.booking.enums;
+
+public enum GuestIdProofType {
+    AADHAAR, PASSPORT, DRIVING_LICENSE, VOTER_ID, PAN
+}
+
+
+===== src/main/java/com/agacostays/booking/enums/PaymentStatus.java =====
+package com.agacostays.booking.enums;
+
+public enum PaymentStatus {
+    PENDING, SUCCESS, FAILED, REFUNDED, PAY_AT_CHECKOUT
+}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingApprovedEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingApprovedEvent(Long bookingId, Long branchId, Long customerId, Long roomId) {}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingCancelledEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingCancelledEvent(Long bookingId, Long branchId, Long customerId, Long roomId, String reason) {}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingCreatedEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingCreatedEvent(Long bookingId, Long branchId, Long customerId, Long roomId, java.math.BigDecimal totalAmount) {}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingPaymentStatusUpdatedEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingPaymentStatusUpdatedEvent(Long bookingId, Long branchId, Long customerId, com.agacostays.booking.enums.PaymentStatus paymentStatus) {}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingRejectedEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingRejectedEvent(Long bookingId, Long branchId, Long customerId, Long roomId, String remarks) {}
+
+
+===== src/main/java/com/agacostays/booking/event/BookingStatusChangedEvent.java =====
+package com.agacostays.booking.event;
+
+public record BookingStatusChangedEvent(Long bookingId, Long branchId, Long customerId, Long roomId, com.agacostays.booking.enums.BookingStatus status) {}
+
+
+===== src/main/java/com/agacostays/booking/event/CheckInCompletedEvent.java =====
+package com.agacostays.booking.event;
+
+public record CheckInCompletedEvent(Long bookingId, Long branchId, Long customerId, Long roomId) {}
+
+
+===== src/main/java/com/agacostays/booking/event/CheckoutCompletedEvent.java =====
+package com.agacostays.booking.event;
+
+public record CheckoutCompletedEvent(Long bookingId, Long branchId, Long customerId, Long roomId) {}
+
+
+===== src/main/java/com/agacostays/booking/exception/BookingNotAllowedException.java =====
+package com.agacostays.booking.exception;
+
+public class BookingNotAllowedException extends RuntimeException {
+    public BookingNotAllowedException() { super("Booking action is not allowed"); }
+    public BookingNotAllowedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/BookingNotFoundException.java =====
+package com.agacostays.booking.exception;
+
+public class BookingNotFoundException extends RuntimeException {
+    public BookingNotFoundException() { super("Booking not found"); }
+    public BookingNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/BranchAccessDeniedException.java =====
+package com.agacostays.booking.exception;
+
+public class BranchAccessDeniedException extends RuntimeException {
+    public BranchAccessDeniedException() { super("Branch access denied"); }
+    public BranchAccessDeniedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/BranchNotFoundException.java =====
+package com.agacostays.booking.exception;
+
+public class BranchNotFoundException extends RuntimeException {
+    public BranchNotFoundException() { super("Branch not found"); }
+    public BranchNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/CheckInNotAllowedException.java =====
+package com.agacostays.booking.exception;
+
+public class CheckInNotAllowedException extends RuntimeException {
+    public CheckInNotAllowedException() { super("Check-in is not allowed"); }
+    public CheckInNotAllowedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/CheckOutNotAllowedException.java =====
+package com.agacostays.booking.exception;
+
+public class CheckOutNotAllowedException extends RuntimeException {
+    public CheckOutNotAllowedException() { super("Check-out is not allowed"); }
+    public CheckOutNotAllowedException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/CustomerMismatchException.java =====
+package com.agacostays.booking.exception;
+
+public class CustomerMismatchException extends RuntimeException {
+    public CustomerMismatchException() { super("Customer does not own this booking"); }
+    public CustomerMismatchException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/CustomerNotFoundException.java =====
+package com.agacostays.booking.exception;
+
+public class CustomerNotFoundException extends RuntimeException {
+    public CustomerNotFoundException() { super("Customer not found"); }
+    public CustomerNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/DuplicateBookingException.java =====
+package com.agacostays.booking.exception;
+
+public class DuplicateBookingException extends RuntimeException {
+    public DuplicateBookingException() { super("Duplicate booking detected"); }
+    public DuplicateBookingException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/GlobalExceptionHandler.java =====
+package com.agacostays.booking.exception;
+
+import com.agacostays.booking.dto.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.*;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<String>> validation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .orElse("Validation failed");
+        return ResponseEntity.badRequest().body(ApiResponse.error(message, null));
+    }
+
+    @ExceptionHandler({
+            BookingNotFoundException.class,
+            CustomerNotFoundException.class,
+            RoomNotFoundException.class,
+            BranchNotFoundException.class
+    })
+    public ResponseEntity<ApiResponse<String>> notFound(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler({
+            BookingNotAllowedException.class,
+            CustomerMismatchException.class,
+            BranchAccessDeniedException.class,
+            CheckInNotAllowedException.class,
+            CheckOutNotAllowedException.class,
+            PaymentRequiredException.class,
+            InvalidBookingStatusException.class
+    })
+    public ResponseEntity<ApiResponse<String>> business(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(DuplicateBookingException.class)
+    public ResponseEntity<ApiResponse<String>> duplicate(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(RoomNotAvailableException.class)
+    public ResponseEntity<ApiResponse<String>> unavailable(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(InvalidDateRangeException.class)
+    public ResponseEntity<ApiResponse<String>> badDate(RuntimeException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<String>> generic(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Internal booking service error", null));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/InvalidBookingStatusException.java =====
+package com.agacostays.booking.exception;
+
+public class InvalidBookingStatusException extends RuntimeException {
+    public InvalidBookingStatusException() { super("Invalid booking status transition"); }
+    public InvalidBookingStatusException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/InvalidDateRangeException.java =====
+package com.agacostays.booking.exception;
+
+public class InvalidDateRangeException extends RuntimeException {
+    public InvalidDateRangeException() { super("Invalid date range"); }
+    public InvalidDateRangeException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/PaymentRequiredException.java =====
+package com.agacostays.booking.exception;
+
+public class PaymentRequiredException extends RuntimeException {
+    public PaymentRequiredException() { super("Payment is required"); }
+    public PaymentRequiredException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/RoomNotAvailableException.java =====
+package com.agacostays.booking.exception;
+
+public class RoomNotAvailableException extends RuntimeException {
+    public RoomNotAvailableException() { super("Room is not available"); }
+    public RoomNotAvailableException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/exception/RoomNotFoundException.java =====
+package com.agacostays.booking.exception;
+
+public class RoomNotFoundException extends RuntimeException {
+    public RoomNotFoundException() { super("Room not found"); }
+    public RoomNotFoundException(String message) { super(message); }
+}
+
+
+===== src/main/java/com/agacostays/booking/idempotency/IdempotencyRecord.java =====
+package com.agacostays.booking.idempotency;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "idempotency_records",
+       uniqueConstraints = @UniqueConstraint(name = "uk_idempotency_key", columnNames = "idempotency_key"))
+@Getter @Setter @Builder
+@NoArgsConstructor @AllArgsConstructor
+public class IdempotencyRecord {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "idempotency_key", nullable = false, unique = true, length = 120)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", nullable = false, length = 128)
+    private String requestHash;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) createdAt = OffsetDateTime.now();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/idempotency/IdempotencyService.java =====
+package com.agacostays.booking.idempotency;
+
+import com.agacostays.booking.exception.DuplicateBookingException;
+import com.agacostays.booking.repository.IdempotencyRecordRepository;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
+@Service
+public class IdempotencyService {
+
+    private final IdempotencyRecordRepository repository;
+
+    public IdempotencyService(IdempotencyRecordRepository repository) {
+        this.repository = repository;
+    }
+
+    public void validateAndStore(String key, String requestPayload) {
+        if (key == null || key.isBlank()) return;
+
+        String hash = sha256(requestPayload);
+        var existing = repository.findByIdempotencyKey(key);
+        if (existing.isPresent()) {
+            if (!existing.get().getRequestHash().equals(hash)) {
+                throw new DuplicateBookingException("Idempotency key was already used with different request data");
+            }
+            throw new DuplicateBookingException("Request already processed for Idempotency-Key: " + key);
+        }
+
+        repository.save(IdempotencyRecord.builder()
+                .idempotencyKey(key)
+                .requestHash(hash)
+                .build());
+    }
+
+    private String sha256(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return java.util.HexFormat.of().formatHex(md.digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to hash request", e);
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/mapper/BookingHistoryMapper.java =====
+package com.agacostays.booking.mapper;
+
+import com.agacostays.booking.dto.response.BookingHistoryResponse;
+import com.agacostays.booking.entity.BookingHistory;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BookingHistoryMapper {
+    public BookingHistoryResponse toResponse(BookingHistory h) {
+        return BookingHistoryResponse.builder()
+                .historyId(h.getHistoryId())
+                .bookingId(h.getBookingId())
+                .action(h.getAction())
+                .bookingStatus(h.getBookingStatus())
+                .changedBy(h.getChangedBy())
+                .changedByRole(h.getChangedByRole())
+                .remarks(h.getRemarks())
+                .createdAt(h.getCreatedAt())
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/mapper/BookingMapper.java =====
+package com.agacostays.booking.mapper;
+
+import com.agacostays.booking.dto.response.BookingResponse;
+import com.agacostays.booking.entity.Booking;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BookingMapper {
+    public BookingResponse toResponse(Booking b) {
+        return BookingResponse.builder()
+                .bookingId(b.getBookingId())
+                .branchId(b.getBranchId())
+                .customerId(b.getCustomerId())
+                .roomId(b.getRoomId())
+                .checkInDate(b.getCheckInDate())
+                .checkOutDate(b.getCheckOutDate())
+                .checkInTime(b.getCheckInTime())
+                .checkOutTime(b.getCheckOutTime())
+                .numberOfGuests(b.getNumberOfGuests())
+                .numberOfDays(b.getNumberOfDays())
+                .pricePerDay(b.getPricePerDayAtBooking())
+                .totalAmount(b.getRoomCharges())
+                .bookingStatus(b.getBookingStatus())
+                .bookingSource(b.getBookingSource())
+                .paymentStatus(b.getPaymentStatus())
+                .guestName(b.getGuestName())
+                .guestIdProofType(b.getGuestIdProofType())
+                .checkInCompletedAt(b.getCheckInCompletedAt())
+                .checkOutCompletedAt(b.getCheckOutCompletedAt())
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/producer/BookingEventProducer.java =====
+package com.agacostays.booking.producer;
+
+import com.agacostays.booking.constants.KafkaTopicConstants;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.event.*;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BookingEventProducer {
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    public BookingEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    public void bookingCreated(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_CREATED, String.valueOf(b.getBookingId()),
+                new BookingCreatedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId(), b.getRoomCharges()));
+    }
+
+    public void bookingApproved(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_APPROVED, String.valueOf(b.getBookingId()),
+                new BookingApprovedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId()));
+    }
+
+    public void bookingRejected(Booking b, String remarks) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_REJECTED, String.valueOf(b.getBookingId()),
+                new BookingRejectedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId(), remarks));
+    }
+
+    public void bookingCancelled(Booking b, String reason) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_CANCELLED, String.valueOf(b.getBookingId()),
+                new BookingCancelledEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId(), reason));
+    }
+
+    public void checkInCompleted(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.CHECKIN_COMPLETED, String.valueOf(b.getBookingId()),
+                new CheckInCompletedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId()));
+    }
+
+    public void checkoutCompleted(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.CHECKOUT_COMPLETED, String.valueOf(b.getBookingId()),
+                new CheckoutCompletedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId()));
+    }
+
+    public void paymentStatusUpdated(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_PAYMENT_STATUS_UPDATED, String.valueOf(b.getBookingId()),
+                new BookingPaymentStatusUpdatedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getPaymentStatus()));
+    }
+
+    public void statusChanged(Booking b) {
+        kafkaTemplate.send(KafkaTopicConstants.BOOKING_STATUS_CHANGED, String.valueOf(b.getBookingId()),
+                new BookingStatusChangedEvent(b.getBookingId(), b.getBranchId(), b.getCustomerId(), b.getRoomId(), b.getBookingStatus()));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/repository/BookingHistoryRepository.java =====
+package com.agacostays.booking.repository;
+
+import com.agacostays.booking.entity.BookingHistory;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface BookingHistoryRepository extends JpaRepository<BookingHistory, Long> {
+    List<BookingHistory> findByBookingIdOrderByCreatedAtDesc(Long bookingId);
+}
+
+
+===== src/main/java/com/agacostays/booking/repository/BookingRepository.java =====
+package com.agacostays.booking.repository;
+
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingStatus;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.*;
+
+public interface BookingRepository extends JpaRepository<Booking, Long> {
+
+    List<Booking> findByBranchIdAndBookingStatus(Long branchId, BookingStatus status);
+
+    List<Booking> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+
+    boolean existsByRoomIdAndBookingStatusInAndCheckInDateLessThanAndCheckOutDateGreaterThan(
+            Long roomId,
+            Collection<BookingStatus> statuses,
+            LocalDate checkOutDate,
+            LocalDate checkInDate
+    );
+
+    Page<Booking> findByBranchId(Long branchId, Pageable pageable);
+
+    List<Booking> findByBranchIdAndCheckInDateLessThanEqualAndCheckOutDateGreaterThanEqual(
+            Long branchId, LocalDate checkInDate, LocalDate checkOutDate
+    );
+
+    List<Booking> findByBookingStatusAndCreatedAtBefore(BookingStatus status, java.time.OffsetDateTime cutoff);
+
+    @Query("""
+        select b from Booking b
+        where b.branchId = :branchId
+          and b.checkInDate < :endDate
+          and b.checkOutDate > :startDate
+          and b.bookingStatus in :statuses
+        order by b.checkInDate
+    """)
+    List<Booking> findOverlappingBookings(
+            @Param("branchId") Long branchId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("statuses") Collection<BookingStatus> statuses
+    );
+}
+
+
+===== src/main/java/com/agacostays/booking/repository/IdempotencyRecordRepository.java =====
+package com.agacostays.booking.repository;
+
+import com.agacostays.booking.idempotency.IdempotencyRecord;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecord, Long> {
+    Optional<IdempotencyRecord> findByIdempotencyKey(String idempotencyKey);
+}
+
+
+===== src/main/java/com/agacostays/booking/scheduler/BookingExpiryScheduler.java =====
+package com.agacostays.booking.scheduler;
+
+import com.agacostays.booking.constants.BookingConstants;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingAction;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.producer.BookingEventProducer;
+import com.agacostays.booking.repository.BookingHistoryRepository;
+import com.agacostays.booking.repository.BookingRepository;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+
+@Component
+public class BookingExpiryScheduler {
+
+    private final BookingRepository bookingRepository;
+    private final BookingHistoryRepository historyRepository;
+    private final BookingEventProducer eventProducer;
+
+    public BookingExpiryScheduler(BookingRepository bookingRepository,
+                                   BookingHistoryRepository historyRepository,
+                                   BookingEventProducer eventProducer) {
+        this.bookingRepository = bookingRepository;
+        this.historyRepository = historyRepository;
+        this.eventProducer = eventProducer;
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void expirePendingBookings() {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(BookingConstants.EXPIRY_MINUTES);
+
+        for (Booking booking : bookingRepository.findByBookingStatusAndCreatedAtBefore(BookingStatus.PENDING, cutoff)) {
+            booking.setBookingStatus(BookingStatus.CANCELLED);
+            booking.setCancellationReason("PENDING_TIMEOUT");
+            bookingRepository.save(booking);
+
+            historyRepository.save(BookingHistory.builder()
+                    .bookingId(booking.getBookingId())
+                    .action(BookingAction.CANCELLED)
+                    .bookingStatus(BookingStatus.CANCELLED)
+                    .remarks("Automatically expired after pending timeout")
+                    .build());
+
+            eventProducer.bookingCancelled(booking, "PENDING_TIMEOUT");
+            eventProducer.statusChanged(booking);
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/.gitkeep =====
+
+
+===== src/main/java/com/agacostays/booking/security/AccessDeniedHandlerImpl.java =====
+package com.agacostays.booking.security;
+
+import jakarta.servlet.http.*;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class AccessDeniedHandlerImpl implements AccessDeniedHandler {
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+                       AccessDeniedException accessDeniedException) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"status\":\"error\",\"message\":\"Access denied\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/AuthenticationEntryPointHandler.java =====
+package com.agacostays.booking.security;
+
+import jakarta.servlet.http.*;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class AuthenticationEntryPointHandler implements AuthenticationEntryPoint {
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+                         AuthenticationException authException) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"status\":\"error\",\"message\":\"Authentication required\"}");
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/BookingSecurityConfig.java =====
+package com.agacostays.booking.security;
+
+import org.springframework.context.annotation.*;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class BookingSecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthenticationEntryPointHandler entryPointHandler;
+    private final AccessDeniedHandlerImpl accessDeniedHandler;
+
+    public BookingSecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                                 AuthenticationEntryPointHandler entryPointHandler,
+                                 AccessDeniedHandlerImpl accessDeniedHandler) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.entryPointHandler = entryPointHandler;
+        this.accessDeniedHandler = accessDeniedHandler;
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    "/actuator/**",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**"
+                ).permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(entryPointHandler)
+                .accessDeniedHandler(accessDeniedHandler))
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/BranchAccessValidator.java =====
+package com.agacostays.booking.security;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class BranchAccessValidator {
+
+    public void validate(Long requestedBranchId, Long assignedBranchId) {
+        if (assignedBranchId == null || !requestedBranchId.equals(assignedBranchId)) {
+            throw new com.agacostays.booking.exception.BranchAccessDeniedException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/CurrentUserProvider.java =====
+package com.agacostays.booking.security;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+
+@Component
+public class CurrentUserProvider {
+
+    public Long getCurrentUserId() {
+        String subject = SecurityContextHolder.getContext().getAuthentication().getName();
+        try {
+            return Long.valueOf(subject);
+        } catch (NumberFormatException ex) {
+            throw new IllegalStateException("JWT subject must contain numeric user id");
+        }
+    }
+
+    public String getCurrentRole() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                .stream()
+                .findFirst()
+                .map(a -> a.getAuthority().replace("ROLE_", ""))
+                .orElse("UNKNOWN");
+    }
+
+    public boolean isCustomer() {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                .stream().anyMatch(a -> a.getAuthority().equals("ROLE_CUSTOMER"));
+    }
+
+    public boolean isAuthenticated() {
+        return SecurityContextHolder.getContext().getAuthentication() != null
+                && SecurityContextHolder.getContext().getAuthentication().isAuthenticated();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/JwtAuthenticationFilter.java =====
+package com.agacostays.booking.security;
+
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtTokenProvider tokenProvider;
+
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider) {
+        this.tokenProvider = tokenProvider;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String auth = request.getHeader("Authorization");
+
+        if (auth != null && auth.startsWith("Bearer ")) {
+            String token = auth.substring(7);
+            if (tokenProvider.isValid(token)) {
+                Claims claims = tokenProvider.parse(token);
+                List<String> roles = new ArrayList<>();
+
+                Object rolesClaim = claims.get("roles");
+                if (rolesClaim instanceof Collection<?> c) {
+                    c.forEach(v -> roles.add(String.valueOf(v)));
+                } else if (rolesClaim != null) {
+                    roles.add(String.valueOf(rolesClaim));
+                }
+
+                var authorities = roles.stream()
+                        .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toList());
+
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        claims.getSubject(), null, authorities);
+                authentication.setDetails(claims);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/JwtTokenProvider.java =====
+package com.agacostays.booking.security;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+
+@Component
+public class JwtTokenProvider {
+
+    private final SecretKey key;
+
+    public JwtTokenProvider(@Value("${security.jwt.secret}") String secret) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public Claims parse(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+    }
+
+    public boolean isValid(String token) {
+        try {
+            parse(token);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/MethodSecurityConfig.java =====
+package com.agacostays.booking.security;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
+@Configuration
+@EnableMethodSecurity
+public class MethodSecurityConfig {
+}
+
+
+===== src/main/java/com/agacostays/booking/security/OwnerAccessValidator.java =====
+package com.agacostays.booking.security;
+
+import com.agacostays.booking.entity.Booking;
+import org.springframework.stereotype.Component;
+
+@Component
+public class OwnerAccessValidator {
+
+    private final CurrentUserProvider currentUserProvider;
+
+    public OwnerAccessValidator(CurrentUserProvider currentUserProvider) {
+        this.currentUserProvider = currentUserProvider;
+    }
+
+    public void validateOwner(Booking booking) {
+        if (currentUserProvider.isCustomer()
+                && !booking.getCustomerId().equals(currentUserProvider.getCurrentUserId())) {
+            throw new com.agacostays.booking.exception.CustomerMismatchException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/security/RoleBasedAccessService.java =====
+package com.agacostays.booking.security;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class RoleBasedAccessService {
+    public boolean canManageBooking(String role) {
+        return "ROOT_ADMIN".equals(role)
+                || "MANAGER".equals(role)
+                || "RECEPTIONIST".equals(role);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/BookingNotificationService.java =====
+package com.agacostays.booking.service;
+
+import com.agacostays.booking.entity.Booking;
+
+public interface BookingNotificationService {
+    void notifyCreated(Booking booking);
+    void notifyStatusChanged(Booking booking);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/BookingPriceService.java =====
+package com.agacostays.booking.service;
+
+import java.math.BigDecimal;
+
+public interface BookingPriceService {
+    BigDecimal calculate(BigDecimal pricePerDay, int numberOfDays);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/BookingService.java =====
+package com.agacostays.booking.service;
+
+import com.agacostays.booking.dto.request.*;
+import com.agacostays.booking.dto.response.*;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+
+public interface BookingService {
+    BookingResponse create(Long branchId, CreateBookingRequest request, String idempotencyKey);
+    BookingResponse createForCustomer(Long branchId, Long customerId, CreateBookingRequest request, String idempotencyKey);
+    BookingResponse getById(Long bookingId);
+    List<BookingResponse> getMyBookings();
+    PageResponse<BookingResponse> getBranchBookings(Long branchId, Pageable pageable);
+    BookingResponse update(Long bookingId, UpdateBookingRequest request);
+    BookingStatusResponse approve(Long bookingId, String remarks);
+    BookingStatusResponse reject(Long bookingId, String remarks);
+    BookingStatusResponse cancel(Long bookingId, BookingCancelRequest request);
+    CheckInResponse checkIn(Long bookingId, CheckInRequest request);
+    CheckOutResponse checkOut(Long bookingId, CheckOutRequest request);
+    List<BookingHistoryResponse> history(Long bookingId);
+    List<BookingResponse> searchByDateRange(Long branchId, BookingDateRangeRequest request);
+    void updatePaymentStatus(Long bookingId, com.agacostays.booking.enums.PaymentStatus status);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/BookingValidationService.java =====
+package com.agacostays.booking.service;
+
+import com.agacostays.booking.dto.request.CreateBookingRequest;
+
+public interface BookingValidationService {
+    void validateCreate(Long branchId, CreateBookingRequest request);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/CheckInService.java =====
+package com.agacostays.booking.service;
+
+import com.agacostays.booking.dto.request.CheckInRequest;
+import com.agacostays.booking.dto.response.CheckInResponse;
+
+public interface CheckInService {
+    CheckInResponse checkIn(Long bookingId, CheckInRequest request);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/CheckOutService.java =====
+package com.agacostays.booking.service;
+
+import com.agacostays.booking.dto.request.CheckOutRequest;
+import com.agacostays.booking.dto.response.CheckOutResponse;
+
+public interface CheckOutService {
+    CheckOutResponse checkOut(Long bookingId, CheckOutRequest request);
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/BookingNotificationServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.client.NotificationServiceClient;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.service.BookingNotificationService;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BookingNotificationServiceImpl implements BookingNotificationService {
+
+    @SuppressWarnings("unused")
+    private final NotificationServiceClient notificationServiceClient;
+
+    public BookingNotificationServiceImpl(NotificationServiceClient notificationServiceClient) {
+        this.notificationServiceClient = notificationServiceClient;
+    }
+
+    @Override
+    public void notifyCreated(Booking booking) {
+        // Notification is intentionally event-driven; Notification service consumes booking-created.
+    }
+
+    @Override
+    public void notifyStatusChanged(Booking booking) {
+        // Notification is intentionally event-driven; Notification service consumes booking status events.
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/BookingPriceServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.service.BookingPriceService;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+
+@Service
+public class BookingPriceServiceImpl implements BookingPriceService {
+    @Override
+    public BigDecimal calculate(BigDecimal pricePerDay, int numberOfDays) {
+        return pricePerDay.multiply(BigDecimal.valueOf(numberOfDays));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/BookingServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.client.RoomServiceClient;
+import com.agacostays.booking.client.UserServiceClient;
+import com.agacostays.booking.dto.request.*;
+import com.agacostays.booking.dto.response.*;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.entity.BookingHistory;
+import com.agacostays.booking.enums.*;
+import com.agacostays.booking.exception.*;
+import com.agacostays.booking.idempotency.IdempotencyService;
+import com.agacostays.booking.mapper.BookingHistoryMapper;
+import com.agacostays.booking.mapper.BookingMapper;
+import com.agacostays.booking.producer.BookingEventProducer;
+import com.agacostays.booking.repository.BookingHistoryRepository;
+import com.agacostays.booking.repository.BookingRepository;
+import com.agacostays.booking.security.CurrentUserProvider;
+import com.agacostays.booking.security.OwnerAccessValidator;
+import com.agacostays.booking.service.*;
+import com.agacostays.booking.util.*;
+import com.agacostays.booking.validation.*;
+import org.springframework.data.domain.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.*;
+
+@Service
+public class BookingServiceImpl implements BookingService {
+
+    private final BookingRepository bookingRepository;
+    private final BookingHistoryRepository historyRepository;
+    private final BookingMapper bookingMapper;
+    private final BookingHistoryMapper historyMapper;
+    private final RoomServiceClient roomServiceClient;
+    private final UserServiceClient userServiceClient;
+    private final BookingValidationService bookingValidationService;
+    private final BookingStatusValidationService statusValidationService;
+    private final BookingEventProducer eventProducer;
+    private final CurrentUserProvider currentUserProvider;
+    private final OwnerAccessValidator ownerAccessValidator;
+    private final BookingNotificationService notificationService;
+    private final BookingPriceService priceService;
+    private final IdempotencyService idempotencyService;
+
+    public BookingServiceImpl(BookingRepository bookingRepository,
+                              BookingHistoryRepository historyRepository,
+                              BookingMapper bookingMapper,
+                              BookingHistoryMapper historyMapper,
+                              RoomServiceClient roomServiceClient,
+                              UserServiceClient userServiceClient,
+                              BookingValidationService bookingValidationService,
+                              BookingStatusValidationService statusValidationService,
+                              BookingEventProducer eventProducer,
+                              CurrentUserProvider currentUserProvider,
+                              OwnerAccessValidator ownerAccessValidator,
+                              BookingNotificationService notificationService,
+                              BookingPriceService priceService,
+                              IdempotencyService idempotencyService) {
+        this.bookingRepository = bookingRepository;
+        this.historyRepository = historyRepository;
+        this.bookingMapper = bookingMapper;
+        this.historyMapper = historyMapper;
+        this.roomServiceClient = roomServiceClient;
+        this.userServiceClient = userServiceClient;
+        this.bookingValidationService = bookingValidationService;
+        this.statusValidationService = statusValidationService;
+        this.eventProducer = eventProducer;
+        this.currentUserProvider = currentUserProvider;
+        this.ownerAccessValidator = ownerAccessValidator;
+        this.notificationService = notificationService;
+        this.priceService = priceService;
+        this.idempotencyService = idempotencyService;
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse create(Long branchId, CreateBookingRequest request, String idempotencyKey) {
+        Long customerId = currentUserProvider.isCustomer()
+                ? currentUserProvider.getCurrentUserId()
+                : request.getCustomerId();
+
+        if (customerId == null) {
+            throw new CustomerNotFoundException("Customer id is required");
+        }
+        return createInternal(branchId, customerId, request, idempotencyKey,
+                currentUserProvider.getCurrentUserId(), BookingSource.WEBSITE);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse createForCustomer(Long branchId, Long customerId, CreateBookingRequest request, String idempotencyKey) {
+        return createInternal(branchId, customerId, request, idempotencyKey,
+                currentUserProvider.getCurrentUserId(), BookingSource.RECEPTIONIST);
+    }
+
+    private BookingResponse createInternal(Long branchId, Long customerId, CreateBookingRequest request,
+                                           String idempotencyKey, Long actorId, BookingSource source) {
+        bookingValidationService.validateCreate(branchId, request);
+
+        try {
+            userServiceClient.getCustomer(customerId);
+        } catch (Exception ex) {
+            throw new CustomerNotFoundException();
+        }
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            idempotencyService.validateAndStore(idempotencyKey, request.toString() + ":" + branchId + ":" + customerId);
+        }
+
+        var room = roomServiceClient.getRoom(branchId, request.getRoomId());
+        int days = DateRangeUtil.numberOfDays(request.getCheckInDate(), request.getCheckOutDate());
+        BigDecimal price = room.getCurrentPricePerDay();
+        BigDecimal total = priceService.calculate(price, days);
+
+        Booking booking = Booking.builder()
+                .branchId(branchId)
+                .customerId(customerId)
+                .roomId(request.getRoomId())
+                .checkInDate(request.getCheckInDate())
+                .checkOutDate(request.getCheckOutDate())
+                .checkInTime(request.getCheckInTime())
+                .checkOutTime(request.getCheckOutTime())
+                .numberOfGuests(request.getNumberOfGuests())
+                .numberOfDays(days)
+                .pricePerDayAtBooking(price)
+                .roomCharges(total)
+                .bookingStatus(BookingStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING)
+                .bookingSource(source)
+                .createdBy(actorId)
+                .updatedBy(actorId)
+                .build();
+
+        Booking saved = bookingRepository.save(booking);
+
+        addHistory(saved, BookingAction.CREATED, "Booking created");
+        eventProducer.bookingCreated(saved);
+        eventProducer.statusChanged(saved);
+        notificationService.notifyCreated(saved);
+
+        return bookingMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BookingResponse getById(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        ownerAccessValidator.validateOwner(booking);
+        return bookingMapper.toResponse(booking);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getMyBookings() {
+        Long customerId = currentUserProvider.getCurrentUserId();
+        return bookingRepository.findByCustomerIdOrderByCreatedAtDesc(customerId)
+                .stream().map(bookingMapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<BookingResponse> getBranchBookings(Long branchId, Pageable pageable) {
+        Page<Booking> page = bookingRepository.findByBranchId(branchId, pageable);
+        return PageResponse.<BookingResponse>builder()
+                .content(page.getContent().stream().map(bookingMapper::toResponse).toList())
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse update(Long bookingId, UpdateBookingRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        ownerAccessValidator.validateOwner(booking);
+        statusValidationService.requireStatus(booking, BookingStatus.PENDING, BookingStatus.APPROVED);
+
+        if (request.getCheckInDate() != null) booking.setCheckInDate(request.getCheckInDate());
+        if (request.getCheckOutDate() != null) booking.setCheckOutDate(request.getCheckOutDate());
+        if (request.getCheckInTime() != null) booking.setCheckInTime(request.getCheckInTime());
+        if (request.getCheckOutTime() != null) booking.setCheckOutTime(request.getCheckOutTime());
+        if (request.getNumberOfGuests() != null) booking.setNumberOfGuests(request.getNumberOfGuests());
+
+        int days = DateRangeUtil.numberOfDays(booking.getCheckInDate(), booking.getCheckOutDate());
+        booking.setNumberOfDays(days);
+        booking.setRoomCharges(priceService.calculate(booking.getPricePerDayAtBooking(), days));
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+
+        bookingRepository.save(booking);
+        addHistory(booking, BookingAction.UPDATED, "Booking updated");
+        eventProducer.statusChanged(booking);
+
+        return bookingMapper.toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingStatusResponse approve(Long bookingId, String remarks) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        statusValidationService.requireStatus(booking, BookingStatus.PENDING);
+
+        booking.setBookingStatus(BookingStatus.APPROVED);
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+        bookingRepository.save(booking);
+
+        addHistory(booking, BookingAction.APPROVED, remarks);
+        eventProducer.bookingApproved(booking);
+        eventProducer.statusChanged(booking);
+        notificationService.notifyStatusChanged(booking);
+
+        return BookingStatusResponse.builder()
+                .bookingId(bookingId)
+                .bookingStatus(booking.getBookingStatus())
+                .message("Booking approved successfully")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BookingStatusResponse reject(Long bookingId, String remarks) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        statusValidationService.requireStatus(booking, BookingStatus.PENDING);
+
+        booking.setBookingStatus(BookingStatus.REJECTED);
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+        bookingRepository.save(booking);
+
+        addHistory(booking, BookingAction.REJECTED, remarks);
+        eventProducer.bookingRejected(booking, remarks);
+        eventProducer.statusChanged(booking);
+        notificationService.notifyStatusChanged(booking);
+
+        return BookingStatusResponse.builder()
+                .bookingId(bookingId)
+                .bookingStatus(booking.getBookingStatus())
+                .message("Booking rejected successfully")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BookingStatusResponse cancel(Long bookingId, BookingCancelRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        ownerAccessValidator.validateOwner(booking);
+        statusValidationService.requireStatus(booking, BookingStatus.PENDING, BookingStatus.APPROVED);
+
+        String reason = request.getReason() == null ? "OTHER" : request.getReason().name();
+        booking.setBookingStatus(BookingStatus.CANCELLED);
+        booking.setCancellationReason(reason);
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+        bookingRepository.save(booking);
+
+        addHistory(booking, BookingAction.CANCELLED, request.getRemarks());
+        eventProducer.bookingCancelled(booking, reason);
+        eventProducer.statusChanged(booking);
+        notificationService.notifyStatusChanged(booking);
+
+        return BookingStatusResponse.builder()
+                .bookingId(bookingId)
+                .bookingStatus(booking.getBookingStatus())
+                .message("Booking cancelled successfully")
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingHistoryResponse> history(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+        ownerAccessValidator.validateOwner(booking);
+
+        return historyRepository.findByBookingIdOrderByCreatedAtDesc(bookingId)
+                .stream().map(historyMapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> searchByDateRange(Long branchId, BookingDateRangeRequest request) {
+        if (!request.getEndDate().isAfter(request.getStartDate())) {
+            throw new InvalidDateRangeException();
+        }
+        return bookingRepository.findOverlappingBookings(
+                branchId,
+                request.getStartDate(),
+                request.getEndDate(),
+                List.of(BookingStatus.PENDING, BookingStatus.APPROVED, BookingStatus.CHECKED_IN))
+                .stream().map(bookingMapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional
+    public void updatePaymentStatus(Long bookingId, PaymentStatus status) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+
+        booking.setPaymentStatus(status);
+        bookingRepository.save(booking);
+
+        addHistory(booking, BookingAction.PAYMENT_UPDATED, "Payment status updated to " + status);
+        eventProducer.paymentStatusUpdated(booking);
+        eventProducer.statusChanged(booking);
+    }
+
+    private void addHistory(Booking booking, BookingAction action, String remarks) {
+        historyRepository.save(BookingHistory.builder()
+                .bookingId(booking.getBookingId())
+                .action(action)
+                .bookingStatus(booking.getBookingStatus())
+                .changedBy(currentUserProvider.isAuthenticated() ? currentUserProvider.getCurrentUserId() : null)
+                .changedByRole(currentUserProvider.isAuthenticated() ? currentUserProvider.getCurrentRole() : null)
+                .remarks(remarks)
+                .build());
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/BookingValidationServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.client.RoomServiceClient;
+import com.agacostays.booking.dto.request.CreateBookingRequest;
+import com.agacostays.booking.exception.InvalidDateRangeException;
+import com.agacostays.booking.exception.RoomNotAvailableException;
+import com.agacostays.booking.service.BookingValidationService;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BookingValidationServiceImpl implements BookingValidationService {
+
+    private final RoomServiceClient roomServiceClient;
+
+    public BookingValidationServiceImpl(RoomServiceClient roomServiceClient) {
+        this.roomServiceClient = roomServiceClient;
+    }
+
+    @Override
+    public void validateCreate(Long branchId, CreateBookingRequest request) {
+        if (!request.getCheckOutDate().isAfter(request.getCheckInDate())) {
+            throw new InvalidDateRangeException();
+        }
+        var room = roomServiceClient.getRoom(branchId, request.getRoomId());
+        if (room == null) {
+            throw new com.agacostays.booking.exception.RoomNotFoundException();
+        }
+        if (!"AVAILABLE".equalsIgnoreCase(room.getStatus())) {
+            // Availability for the requested date range is checked separately below.
+            if ("MAINTENANCE".equalsIgnoreCase(room.getStatus()) || "CLEANING".equalsIgnoreCase(room.getStatus())) {
+                throw new RoomNotAvailableException();
+            }
+        }
+        var availability = roomServiceClient.checkAvailability(
+                branchId, request.getRoomId(), request.getCheckInDate(), request.getCheckOutDate());
+        if (availability == null || !availability.available()) {
+            throw new RoomNotAvailableException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/CheckInServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.dto.request.CheckInRequest;
+import com.agacostays.booking.dto.response.CheckInResponse;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingAction;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.BookingNotFoundException;
+import com.agacostays.booking.mapper.BookingMapper;
+import com.agacostays.booking.producer.BookingEventProducer;
+import com.agacostays.booking.repository.BookingHistoryRepository;
+import com.agacostays.booking.repository.BookingRepository;
+import com.agacostays.booking.service.CheckInService;
+import com.agacostays.booking.validation.CheckInValidationService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+
+@Service
+public class CheckInServiceImpl implements CheckInService {
+
+    private final BookingRepository bookingRepository;
+    private final BookingHistoryRepository historyRepository;
+    private final CheckInValidationService validator;
+    private final BookingEventProducer eventProducer;
+
+    public CheckInServiceImpl(BookingRepository bookingRepository,
+                              BookingHistoryRepository historyRepository,
+                              CheckInValidationService validator,
+                              BookingEventProducer eventProducer) {
+        this.bookingRepository = bookingRepository;
+        this.historyRepository = historyRepository;
+        this.validator = validator;
+        this.eventProducer = eventProducer;
+    }
+
+    @Override
+    @Transactional
+    public CheckInResponse checkIn(Long bookingId, CheckInRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+
+        validator.validate(booking);
+
+        booking.setBookingStatus(BookingStatus.CHECKED_IN);
+        booking.setGuestName(request.getGuestName());
+        booking.setGuestIdProofType(request.getGuestIdProofType().name());
+        booking.setGuestIdProofNumber(request.getGuestIdProofNumber());
+        booking.setCheckInCompletedAt(OffsetDateTime.now());
+        bookingRepository.save(booking);
+
+        historyRepository.save(com.agacostays.booking.entity.BookingHistory.builder()
+                .bookingId(bookingId)
+                .action(BookingAction.CHECKED_IN)
+                .bookingStatus(BookingStatus.CHECKED_IN)
+                .remarks("Guest checked in")
+                .build());
+
+        eventProducer.checkInCompleted(booking);
+        eventProducer.statusChanged(booking);
+
+        return CheckInResponse.builder()
+                .bookingId(bookingId)
+                .status("COMPLETED")
+                .completedAt(booking.getCheckInCompletedAt())
+                .guestName(booking.getGuestName())
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/service/impl/CheckOutServiceImpl.java =====
+package com.agacostays.booking.service.impl;
+
+import com.agacostays.booking.client.BillingServiceClient;
+import com.agacostays.booking.dto.request.CheckOutRequest;
+import com.agacostays.booking.dto.response.CheckOutResponse;
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingAction;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.BookingNotFoundException;
+import com.agacostays.booking.producer.BookingEventProducer;
+import com.agacostays.booking.repository.BookingHistoryRepository;
+import com.agacostays.booking.repository.BookingRepository;
+import com.agacostays.booking.service.CheckOutService;
+import com.agacostays.booking.validation.CheckOutValidationService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+
+@Service
+public class CheckOutServiceImpl implements CheckOutService {
+
+    private final BookingRepository bookingRepository;
+    private final BookingHistoryRepository historyRepository;
+    private final CheckOutValidationService validator;
+    private final BookingEventProducer eventProducer;
+    private final BillingServiceClient billingServiceClient;
+
+    public CheckOutServiceImpl(BookingRepository bookingRepository,
+                               BookingHistoryRepository historyRepository,
+                               CheckOutValidationService validator,
+                               BookingEventProducer eventProducer,
+                               BillingServiceClient billingServiceClient) {
+        this.bookingRepository = bookingRepository;
+        this.historyRepository = historyRepository;
+        this.validator = validator;
+        this.eventProducer = eventProducer;
+        this.billingServiceClient = billingServiceClient;
+    }
+
+    @Override
+    @Transactional
+    public CheckOutResponse checkOut(Long bookingId, CheckOutRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+
+        validator.validate(booking);
+
+        booking.setBookingStatus(BookingStatus.CHECKED_OUT);
+        booking.setCheckOutCompletedAt(OffsetDateTime.now());
+        bookingRepository.save(booking);
+
+        historyRepository.save(com.agacostays.booking.entity.BookingHistory.builder()
+                .bookingId(bookingId)
+                .action(BookingAction.CHECKED_OUT)
+                .bookingStatus(BookingStatus.CHECKED_OUT)
+                .remarks(request.getRemarks())
+                .build());
+
+        eventProducer.checkoutCompleted(booking);
+        eventProducer.statusChanged(booking);
+
+        String billingStatus = "EVENT_PENDING";
+        try {
+            if (billingServiceClient != null) {
+                var bill = billingServiceClient.createBookingCharge(bookingId);
+                if (bill != null && bill.getStatus() != null) {
+                    billingStatus = bill.getStatus();
+                }
+            }
+        } catch (Exception ignored) {
+            // Billing is a downstream service; checkout remains committed and Billing also consumes checkout event.
+        }
+
+        return CheckOutResponse.builder()
+                .bookingId(bookingId)
+                .status("COMPLETED")
+                .completedAt(booking.getCheckOutCompletedAt())
+                .billingStatus(billingStatus)
+                .build();
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/util/BookingPriceUtil.java =====
+package com.agacostays.booking.util;
+
+import java.math.BigDecimal;
+
+public final class BookingPriceUtil {
+    private BookingPriceUtil() {}
+    public static BigDecimal calculate(BigDecimal pricePerDay, int days) {
+        return pricePerDay.multiply(BigDecimal.valueOf(days));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/util/BookingStatusUtil.java =====
+package com.agacostays.booking.util;
+
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.InvalidBookingStatusException;
+
+public final class BookingStatusUtil {
+    private BookingStatusUtil() {}
+
+    public static void require(BookingStatus actual, BookingStatus... allowed) {
+        for (BookingStatus status : allowed) {
+            if (actual == status) return;
+        }
+        throw new InvalidBookingStatusException("Action is not allowed from status " + actual);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/util/BookingUtil.java =====
+package com.agacostays.booking.util;
+
+import java.time.LocalDate;
+
+public final class BookingUtil {
+    private BookingUtil() {}
+    public static boolean validDates(LocalDate in, LocalDate out) {
+        return in != null && out != null && out.isAfter(in);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/util/DateRangeUtil.java =====
+package com.agacostays.booking.util;
+
+import com.agacostays.booking.exception.InvalidDateRangeException;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+
+public final class DateRangeUtil {
+    private DateRangeUtil() {}
+
+    public static int numberOfDays(LocalDate checkIn, LocalDate checkOut) {
+        if (checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
+            throw new InvalidDateRangeException();
+        }
+        return Math.toIntExact(ChronoUnit.DAYS.between(checkIn, checkOut));
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/util/GuestIdProofUtil.java =====
+package com.agacostays.booking.util;
+
+public final class GuestIdProofUtil {
+    private GuestIdProofUtil() {}
+    public static String mask(String value) {
+        if (value == null || value.length() < 4) return "****";
+        return "****" + value.substring(value.length() - 4);
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/BookingDateValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.dto.request.CreateBookingRequest;
+import com.agacostays.booking.exception.InvalidDateRangeException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BookingDateValidationService {
+    public void validate(CreateBookingRequest request) {
+        if (request.getCheckInDate() == null || request.getCheckOutDate() == null
+                || !request.getCheckOutDate().isAfter(request.getCheckInDate())) {
+            throw new InvalidDateRangeException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/BookingOwnershipValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.exception.CustomerMismatchException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BookingOwnershipValidationService {
+    public void validate(Long currentCustomerId, Booking booking) {
+        if (!booking.getCustomerId().equals(currentCustomerId)) {
+            throw new CustomerMismatchException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/BookingStatusValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.InvalidBookingStatusException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BookingStatusValidationService {
+    public void requireStatus(Booking booking, BookingStatus... allowed) {
+        for (BookingStatus s : allowed) {
+            if (booking.getBookingStatus() == s) return;
+        }
+        throw new InvalidBookingStatusException(
+                "Booking " + booking.getBookingId() + " is in status " + booking.getBookingStatus());
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/CheckInValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.CheckInNotAllowedException;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+
+@Service
+public class CheckInValidationService {
+    public void validate(Booking booking) {
+        if (booking.getBookingStatus() != BookingStatus.APPROVED
+                && booking.getBookingStatus() != BookingStatus.PENDING) {
+            throw new CheckInNotAllowedException();
+        }
+        if (LocalDate.now().isBefore(booking.getCheckInDate())) {
+            throw new CheckInNotAllowedException("Check-in date has not arrived");
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/CheckOutValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.enums.BookingStatus;
+import com.agacostays.booking.exception.CheckOutNotAllowedException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CheckOutValidationService {
+    public void validate(Booking booking) {
+        if (booking.getBookingStatus() != BookingStatus.CHECKED_IN) {
+            throw new CheckOutNotAllowedException();
+        }
+    }
+}
+
+
+===== src/main/java/com/agacostays/booking/validation/RoomAvailabilityValidationService.java =====
+package com.agacostays.booking.validation;
+
+import com.agacostays.booking.client.RoomServiceClient;
+import com.agacostays.booking.exception.RoomNotAvailableException;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+
+@Service
+public class RoomAvailabilityValidationService {
+
+    private final RoomServiceClient roomServiceClient;
+
+    public RoomAvailabilityValidationService(RoomServiceClient roomServiceClient) {
+        this.roomServiceClient = roomServiceClient;
+    }
+
+    public void validate(Long branchId, Long roomId, LocalDate checkIn, LocalDate checkOut) {
+        var room = roomServiceClient.getRoom(branchId, roomId);
+        if (room == null) {
+            throw new com.agacostays.booking.exception.RoomNotFoundException();
+        }
+        var availability = roomServiceClient.checkAvailability(branchId, roomId, checkIn, checkOut);
+        if (availability == null || !availability.available()) {
+            throw new RoomNotAvailableException();
+        }
+    }
+}
+
+
+===== src/main/resources/application-dev.properties =====
+spring.config.activate.on-profile=dev
+logging.level.com.agacostays.booking=DEBUG
+
+
+===== src/main/resources/application-prod.properties =====
+spring.config.activate.on-profile=prod
+logging.level.root=INFO
+logging.level.com.agacostays.booking=INFO
+
+
+===== src/main/resources/application.properties =====
+server.port=8086
+
+spring.application.name=booking-service
+
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/booking_db}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:postgres}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.open-in-view=false
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.properties.hibernate.format_sql=true
+
+spring.flyway.enabled=true
+spring.flyway.locations=classpath:db/migration
+
+spring.kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+spring.kafka.consumer.group-id=booking-service
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.properties.spring.json.trusted.packages=com.agacostays.*
+spring.kafka.producer.properties.spring.json.add.type.headers=true
+
+services.room.url=${ROOM_SERVICE_URL:http://localhost:8085}
+services.user.url=${USER_SERVICE_URL:http://localhost:8082}
+services.billing.url=${BILLING_SERVICE_URL:http://localhost:8089}
+services.payment.url=${PAYMENT_SERVICE_URL:http://localhost:8088}
+services.notification.url=${NOTIFICATION_SERVICE_URL:http://localhost:8090}
+
+security.jwt.secret=${JWT_SECRET:change-this-development-secret-to-at-least-32-characters}
+
+management.endpoints.web.exposure.include=health,info,metrics,prometheus
+management.endpoint.health.show-details=when_authorized
+
+logging.level.com.agacostays.booking=INFO
+
+
+===== src/main/resources/db/migration/V1__create_core_tables.sql =====
+CREATE TABLE bookings (
+    booking_id BIGSERIAL PRIMARY KEY,
+    branch_id BIGINT NOT NULL,
+    customer_id BIGINT NOT NULL,
+    room_id BIGINT NOT NULL,
+    check_in_date DATE NOT NULL,
+    check_out_date DATE NOT NULL,
+    check_in_time TIME NOT NULL,
+    check_out_time TIME NOT NULL,
+    number_of_guests INTEGER NOT NULL,
+    number_of_days INTEGER NOT NULL,
+    price_per_day_at_booking NUMERIC(12,2) NOT NULL,
+    room_charges NUMERIC(12,2) NOT NULL,
+    booking_status VARCHAR(30) NOT NULL,
+    payment_status VARCHAR(30) NOT NULL,
+    booking_source VARCHAR(30) NOT NULL,
+    created_by BIGINT,
+    updated_by BIGINT,
+    guest_name VARCHAR(255),
+    guest_id_proof_type VARCHAR(30),
+    guest_id_proof_number VARCHAR(255),
+    check_in_completed_at TIMESTAMPTZ,
+    check_out_completed_at TIMESTAMPTZ,
+    cancellation_reason VARCHAR(60),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE booking_history (
+    history_id BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL,
+    action VARCHAR(40) NOT NULL,
+    booking_status VARCHAR(30) NOT NULL,
+    changed_by BIGINT,
+    changed_by_role VARCHAR(50),
+    remarks TEXT,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE idempotency_records (
+    id BIGSERIAL PRIMARY KEY,
+    idempotency_key VARCHAR(120) NOT NULL UNIQUE,
+    request_hash VARCHAR(128) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+
+===== src/main/resources/db/migration/V2__create_indexes.sql =====
+CREATE INDEX idx_booking_branch ON bookings(branch_id);
+CREATE INDEX idx_booking_customer ON bookings(customer_id);
+CREATE INDEX idx_booking_room ON bookings(room_id);
+CREATE INDEX idx_booking_dates ON bookings(check_in_date, check_out_date);
+CREATE INDEX idx_booking_history_booking ON booking_history(booking_id);
+CREATE INDEX idx_idempotency_created_at ON idempotency_records(created_at);
+
+
+===== src/main/resources/db/migration/V3__create_defaults.sql =====
+-- Booking service stores operational booking data.
+-- No static bookings are inserted by default.
+
+
+===== src/main/resources/logback-spring.xml =====
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
+
+
+===== src/test/java/com/agacostays/booking/controller/BookingControllerTest.java =====
+package com.agacostays.booking.controller;
+
+import org.junit.jupiter.api.Test;
+
+class BookingControllerTest {
+    @Test
+    void contextPlaceholder() {
+        // Add MockMvc controller tests after the Auth/User/Room service contracts are wired.
+    }
+}
+
+
+===== src/test/java/com/agacostays/booking/integration/BookingServiceIntegrationTest.java =====
+package com.agacostays.booking.integration;
+
+import org.junit.jupiter.api.Test;
+
+class BookingServiceIntegrationTest {
+    @Test
+    void integrationPlaceholder() {
+        // Add full Testcontainers coverage when Room/User/Billing/Payment contracts are available.
+    }
+}
+
+
+===== src/test/java/com/agacostays/booking/repository/BookingRepositoryTest.java =====
+package com.agacostays.booking.repository;
+
+import org.junit.jupiter.api.Test;
+
+class BookingRepositoryTest {
+    @Test
+    void repositoryPlaceholder() {
+        // Add DataJpaTest coverage after PostgreSQL/Testcontainers is enabled in CI.
+    }
+}
+
+
+===== src/test/java/com/agacostays/booking/service/BookingServiceTest.java =====
+package com.agacostays.booking.service;
+
+import org.junit.jupiter.api.Test;
+
+class BookingServiceTest {
+    @Test
+    void servicePlaceholder() {
+        // Add Mockito tests for booking state transitions and ownership rules.
+    }
+}
+

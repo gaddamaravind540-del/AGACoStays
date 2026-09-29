@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.request; public record PayrollSearchRequest(Long branchId,Long staffId,Integer month,Integer year,String status){}

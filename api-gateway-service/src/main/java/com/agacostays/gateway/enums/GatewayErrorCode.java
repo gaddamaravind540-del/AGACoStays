@@ -1,0 +1,13 @@
+package com.agacostays.gateway.enums;
+
+public enum GatewayErrorCode {
+    UNAUTHORIZED,
+    ACCESS_DENIED,
+    INVALID_JWT,
+    EXPIRED_JWT,
+    MISSING_AUTHORIZATION,
+    ROUTE_ERROR,
+    DOWNSTREAM_SERVICE_UNAVAILABLE,
+    RATE_LIMIT_EXCEEDED,
+    INTERNAL_GATEWAY_ERROR
+}

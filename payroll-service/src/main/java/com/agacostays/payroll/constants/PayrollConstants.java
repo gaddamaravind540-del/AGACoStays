@@ -1,0 +1,1 @@
+package com.agacostays.payroll.constants; public final class PayrollConstants{private PayrollConstants(){} public static final String DEFAULT_CURRENCY="INR";public static final int DEFAULT_WORKING_DAYS=26;}

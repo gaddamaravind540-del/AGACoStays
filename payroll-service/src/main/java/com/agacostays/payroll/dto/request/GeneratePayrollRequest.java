@@ -1,0 +1,1 @@
+package com.agacostays.payroll.dto.request; import jakarta.validation.constraints.*; public record GeneratePayrollRequest(Long branchId,@NotNull @Min(1) @Max(12) Integer month,@NotNull @Min(2000) Integer year,Long staffId,String paymentMode){}

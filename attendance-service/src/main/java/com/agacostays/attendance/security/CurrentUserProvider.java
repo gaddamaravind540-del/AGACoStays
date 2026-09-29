@@ -1,0 +1,15 @@
+package com.agacostays.attendance.security;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+@Component
+public class CurrentUserProvider {
+    public Long userId(){
+        var a=SecurityContextHolder.getContext().getAuthentication();
+        if(a==null||a.getPrincipal()==null) return null;
+        try{return Long.valueOf(a.getPrincipal().toString());}catch(Exception e){return null;}
+    }
+    public String role(){
+        var a=SecurityContextHolder.getContext().getAuthentication();
+        return a==null?null:a.getAuthorities().stream().findFirst().map(x->x.getAuthority().replace("ROLE_","")).orElse(null);
+    }
+}

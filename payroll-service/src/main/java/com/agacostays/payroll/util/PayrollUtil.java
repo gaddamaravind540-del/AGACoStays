@@ -1,0 +1,1 @@
+package com.agacostays.payroll.util; import java.math.*; public final class PayrollUtil{private PayrollUtil(){} public static BigDecimal money(BigDecimal x){return (x==null?BigDecimal.ZERO:x).setScale(2,RoundingMode.HALF_UP);}}

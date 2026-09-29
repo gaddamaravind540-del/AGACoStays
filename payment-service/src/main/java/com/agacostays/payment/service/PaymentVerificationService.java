@@ -1,0 +1,1 @@
+package com.agacostays.payment.service; import com.agacostays.payment.entity.Payment; import com.agacostays.payment.dto.request.VerifyPaymentRequest; public interface PaymentVerificationService { void verify(Payment payment,VerifyPaymentRequest request); }

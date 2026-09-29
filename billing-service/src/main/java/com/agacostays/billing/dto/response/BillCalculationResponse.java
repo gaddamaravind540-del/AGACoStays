@@ -1,0 +1,1 @@
+package com.agacostays.billing.dto.response; import java.math.BigDecimal; public record BillCalculationResponse(BigDecimal subtotal,BigDecimal taxAmount,BigDecimal discount,BigDecimal finalAmount,String currency){}

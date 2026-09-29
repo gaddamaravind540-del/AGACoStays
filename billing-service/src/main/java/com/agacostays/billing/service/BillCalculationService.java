@@ -1,0 +1,1 @@
+package com.agacostays.billing.service;import com.agacostays.billing.dto.response.BillCalculationResponse;import java.math.BigDecimal;public interface BillCalculationService{BillCalculationResponse calculate(BigDecimal room,BigDecimal restaurant,BigDecimal discount,Long branchId);}

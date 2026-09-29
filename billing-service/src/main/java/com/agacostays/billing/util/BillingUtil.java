@@ -1,0 +1,1 @@
+package com.agacostays.billing.util;import java.math.*;public final class BillingUtil{private BillingUtil(){}public static BigDecimal money(BigDecimal x){return x==null?BigDecimal.ZERO.setScale(2):x.setScale(2,RoundingMode.HALF_UP);}}

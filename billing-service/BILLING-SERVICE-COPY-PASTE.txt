@@ -1,0 +1,9 @@
+AGA CoStays Billing Service
+
+1. Import billing-service into STS as an Existing Maven Project.
+2. Create PostgreSQL DB: CREATE DATABASE billing_db;
+3. Check application.properties for PostgreSQL credentials.
+4. Start Kafka on localhost:9092 when using event consumers.
+5. Run BillingServiceApplication.java as Spring Boot App.
+6. Service URL: http://localhost:8089
+7. Swagger: http://localhost:8089/swagger-ui.html

@@ -1,0 +1,1 @@
+package com.agacostays.billing.repository; import com.agacostays.billing.entity.BillCharge;import org.springframework.data.jpa.repository.JpaRepository;import java.util.List; public interface BillChargeRepository extends JpaRepository<BillCharge,Long>{List<BillCharge> findByBillIdOrderByCreatedAtAsc(Long billId);}
