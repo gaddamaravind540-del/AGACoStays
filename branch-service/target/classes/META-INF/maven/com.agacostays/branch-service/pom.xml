@@ -43,7 +43,10 @@
     </dependencyManagement>
 
     <dependencies>
-
+		<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+</dependency>
         <!-- Spring Boot -->
 
         <dependency>
