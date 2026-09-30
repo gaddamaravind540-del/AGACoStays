@@ -1,19 +1,179 @@
 package com.agacostays.billing.service.impl;
-import com.agacostays.billing.audit.*;import com.agacostays.billing.client.*;import com.agacostays.billing.constants.BillingConstants;import com.agacostays.billing.dto.request.*;import com.agacostays.billing.dto.response.*;import com.agacostays.billing.entity.*;import com.agacostays.billing.enums.*;import com.agacostays.billing.exception.*;import com.agacostays.billing.mapper.*;import com.agacostays.billing.repository.*;import com.agacostays.billing.service.*;import jakarta.transaction.Transactional;import org.springframework.data.domain.*;import org.springframework.stereotype.Service;import java.math.BigDecimal;import java.util.*;
-@Service public class BillingServiceImpl implements BillingService{
- private final BillingRepository br;private final BillChargeRepository cr;private final BillMapper bm;private final BillChargeMapper cm;private final BillCalculationService calc;private final BookingServiceClient bc;private final RestaurantServiceClient rc;private final PaymentServiceClient pc;private final BillingAuditHelper audit;
- public BillingServiceImpl(BillingRepository b,BillChargeRepository c,BillMapper m,BillChargeMapper cm,BillCalculationService calc,BookingServiceClient bc,RestaurantServiceClient rc,PaymentServiceClient pc,BillingAuditHelper a){br=b;cr=c;bm=m;this.cm=cm;this.calc=calc;this.bc=bc;this.rc=rc;this.pc=pc;audit=a;}
- @Transactional public FinalBillResponse generate(Long bookingId,Long branchId,Long customerId){Bill old=br.findByBookingId(bookingId).orElse(null);if(old!=null)return bm.toResponse(old);var booking=bc.getBooking(bookingId);if(booking!=null){if(booking.branchId()!=null)branchId=booking.branchId();if(booking.customerId()!=null)customerId=booking.customerId();}BigDecimal room=booking==null?BigDecimal.ZERO:n(booking.roomCharges());BigDecimal food=rc.getOrdersForBooking(bookingId).stream().map(RestaurantServiceClient.RestaurantCharge::amount).filter(Objects::nonNull).reduce(BigDecimal.ZERO,BigDecimal::add);return createBill(bookingId,branchId,customerId,room,food);}
- private FinalBillResponse createBill(Long bookingId,Long branchId,Long customerId,BigDecimal room,BigDecimal food){var x=calc.calculate(room,food,BigDecimal.ZERO,branchId);Bill b=Bill.builder().branchId(branchId).bookingId(bookingId).customerId(customerId).roomCharges(n(room)).restaurantCharges(n(food)).taxAmount(x.taxAmount()).discount(x.discount()).finalAmount(x.finalAmount()).billStatus(BillStatus.GENERATED).paymentStatus(BillingConstants.PENDING).build();b=br.save(b);charge(b,ChargeType.ROOM,"Room charges",bookingId.toString(),room);if(food.signum()>0)charge(b,ChargeType.RESTAURANT,"Restaurant charges",bookingId.toString(),food);audit.record(new AuditLogRequest("BILL_GENERATED",customerId,branchId,b.getBillId(),"bookingId="+bookingId));return bm.toResponse(b);}
- public FinalBillResponse getByBooking(Long id){return bm.toResponse(br.findByBookingId(id).orElseThrow(()->new ResourceNotFoundException("Bill not found for booking "+id)));}
- public FinalBillResponse getById(Long id){return bm.toResponse(br.findById(id).orElseThrow(()->new ResourceNotFoundException("Bill not found: "+id)));}
- @Transactional public FinalBillResponse applyDiscount(Long id,ApplyDiscountRequest r){Bill b=br.findById(id).orElseThrow(()->new ResourceNotFoundException("Bill not found: "+id));if(b.getBillStatus()==BillStatus.PAID)throw new BusinessRuleException("Cannot discount a paid bill");BigDecimal sub=n(b.getRoomCharges()).add(n(b.getRestaurantCharges()));BigDecimal d=r.discountType()==DiscountType.PERCENTAGE?sub.multiply(r.value()).divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP):r.value();if(d.compareTo(sub)>0)throw new BusinessRuleException("Discount cannot exceed subtotal");var x=calc.calculate(b.getRoomCharges(),b.getRestaurantCharges(),d,b.getBranchId());b.setDiscount(x.discount());b.setTaxAmount(x.taxAmount());b.setFinalAmount(x.finalAmount());return bm.toResponse(br.save(b));}
- public PaymentStatusResponse pay(Long id,PayFinalBillRequest r){Bill b=br.findById(id).orElseThrow(()->new ResourceNotFoundException("Bill not found: "+id));if("SUCCESS".equalsIgnoreCase(b.getPaymentStatus()))return new PaymentStatusResponse(id,"SUCCESS","Bill already paid");if(!pc.initiateFinalBillPayment(id,b.getBookingId(),b.getCustomerId(),b.getFinalAmount(),r.paymentMethod()))throw new BusinessRuleException("Unable to initiate payment");b.setPaymentStatus(BillingConstants.PENDING);br.save(b);return new PaymentStatusResponse(id,"PENDING","Payment initiated");}
- public List<BillChargeResponse> charges(Long id){if(!br.existsById(id))throw new ResourceNotFoundException("Bill not found: "+id);return cr.findByBillIdOrderByCreatedAtAsc(id).stream().map(cm::toResponse).toList();}
- public PageResponse<FinalBillResponse> branchBills(Long branchId,Pageable p){Page<Bill> x=br.findByBranchId(branchId,p);return new PageResponse<>(x.getContent().stream().map(bm::toResponse).toList(),x.getNumber(),x.getSize(),x.getTotalElements(),x.getTotalPages());}
- @Transactional public void markPaidFromEvent(Long billId){br.findById(billId).ifPresent(b->{b.setPaymentStatus(BillingConstants.SUCCESS);b.setBillStatus(BillStatus.PAID);br.save(b);});}
- @Transactional public void addRestaurantCharge(Long bookingId,Long orderId,BigDecimal amount){if(amount==null||amount.signum()<=0)return;Bill b=br.findByBookingId(bookingId).orElse(null);if(b==null)return;boolean exists=cr.findByBillIdOrderByCreatedAtAsc(b.getBillId()).stream().anyMatch(c->String.valueOf(orderId).equals(c.getReferenceId()));if(exists)return;charge(b,ChargeType.RESTAURANT,"Restaurant order",String.valueOf(orderId),amount);BigDecimal total=cr.findByBillIdOrderByCreatedAtAsc(b.getBillId()).stream().filter(c->c.getChargeType()==ChargeType.RESTAURANT).map(BillCharge::getAmount).reduce(BigDecimal.ZERO,BigDecimal::add);var x=calc.calculate(b.getRoomCharges(),total,b.getDiscount(),b.getBranchId());b.setRestaurantCharges(total);b.setTaxAmount(x.taxAmount());b.setFinalAmount(x.finalAmount());br.save(b);}
- public FinalBillResponse getOrCreateFromCheckoutEvent(Long bookingId,Long branchId,Long customerId,BigDecimal room,BigDecimal restaurant){Bill old=br.findByBookingId(bookingId).orElse(null);return old!=null?bm.toResponse(old):createBill(bookingId,branchId,customerId,n(room),n(restaurant));}
- private void charge(Bill b,ChargeType t,String d,String ref,BigDecimal a){if(a==null||a.signum()<=0)return;cr.save(BillCharge.builder().billId(b.getBillId()).chargeType(t).description(d).referenceId(ref).amount(n(a)).build());}
- private BigDecimal n(BigDecimal x){return x==null?BigDecimal.ZERO.setScale(2):x.setScale(2,RoundingMode.HALF_UP);}
+
+import com.agacostays.billing.audit.*;
+import com.agacostays.billing.client.*;
+import com.agacostays.billing.constants.BillingConstants;
+import com.agacostays.billing.dto.request.*;
+import com.agacostays.billing.dto.response.*;
+import com.agacostays.billing.entity.*;
+import com.agacostays.billing.enums.*;
+import com.agacostays.billing.exception.*;
+import com.agacostays.billing.mapper.*;
+import com.agacostays.billing.repository.*;
+import com.agacostays.billing.service.*;
+import jakarta.transaction.Transactional;
+import org.springframework.data.domain.*;
+import org.springframework.stereotype.Service;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+
+@Service
+public class BillingServiceImpl implements BillingService {
+	private final BillingRepository br;
+	private final BillChargeRepository cr;
+	private final BillMapper bm;
+	private final BillChargeMapper cm;
+	private final BillCalculationService calc;
+	private final BookingServiceClient bc;
+	private final RestaurantServiceClient rc;
+	private final PaymentServiceClient pc;
+	private final BillingAuditHelper audit;
+
+	public BillingServiceImpl(BillingRepository b, BillChargeRepository c, BillMapper m, BillChargeMapper cm,
+			BillCalculationService calc, BookingServiceClient bc, RestaurantServiceClient rc, PaymentServiceClient pc,
+			BillingAuditHelper a) {
+		br = b;
+		cr = c;
+		bm = m;
+		this.cm = cm;
+		this.calc = calc;
+		this.bc = bc;
+		this.rc = rc;
+		this.pc = pc;
+		audit = a;
+	}
+
+	@Transactional
+	public FinalBillResponse generate(Long bookingId, Long branchId, Long customerId) {
+		Bill old = br.findByBookingId(bookingId).orElse(null);
+		if (old != null)
+			return bm.toResponse(old);
+		var booking = bc.getBooking(bookingId);
+		if (booking != null) {
+			if (booking.branchId() != null)
+				branchId = booking.branchId();
+			if (booking.customerId() != null)
+				customerId = booking.customerId();
+		}
+		BigDecimal room = booking == null ? BigDecimal.ZERO : n(booking.roomCharges());
+		BigDecimal food = rc.getOrdersForBooking(bookingId).stream()
+				.map(RestaurantServiceClient.RestaurantCharge::amount).filter(Objects::nonNull)
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		return createBill(bookingId, branchId, customerId, room, food);
+	}
+
+	private FinalBillResponse createBill(Long bookingId, Long branchId, Long customerId, BigDecimal room,
+			BigDecimal food) {
+		var x = calc.calculate(room, food, BigDecimal.ZERO, branchId);
+		Bill b = Bill.builder().branchId(branchId).bookingId(bookingId).customerId(customerId).roomCharges(n(room))
+				.restaurantCharges(n(food)).taxAmount(x.taxAmount()).discount(x.discount()).finalAmount(x.finalAmount())
+				.billStatus(BillStatus.GENERATED).paymentStatus(BillingConstants.PENDING).build();
+		b = br.save(b);
+		charge(b, ChargeType.ROOM, "Room charges", bookingId.toString(), room);
+		if (food.signum() > 0)
+			charge(b, ChargeType.RESTAURANT, "Restaurant charges", bookingId.toString(), food);
+		audit.record(
+				new AuditLogRequest("BILL_GENERATED", customerId, branchId, b.getBillId(), "bookingId=" + bookingId));
+		return bm.toResponse(b);
+	}
+
+	public FinalBillResponse getByBooking(Long id) {
+		return bm.toResponse(br.findByBookingId(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Bill not found for booking " + id)));
+	}
+
+	public FinalBillResponse getById(Long id) {
+		return bm.toResponse(br.findById(id).orElseThrow(() -> new ResourceNotFoundException("Bill not found: " + id)));
+	}
+
+	@Transactional
+	public FinalBillResponse applyDiscount(Long id, ApplyDiscountRequest r) {
+		Bill b = br.findById(id).orElseThrow(() -> new ResourceNotFoundException("Bill not found: " + id));
+		if (b.getBillStatus() == BillStatus.PAID)
+			throw new BusinessRuleException("Cannot discount a paid bill");
+		BigDecimal sub = n(b.getRoomCharges()).add(n(b.getRestaurantCharges()));
+		BigDecimal d = r.discountType() == DiscountType.PERCENTAGE
+				? sub.multiply(r.value()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
+				: r.value();
+		if (d.compareTo(sub) > 0)
+			throw new BusinessRuleException("Discount cannot exceed subtotal");
+		var x = calc.calculate(b.getRoomCharges(), b.getRestaurantCharges(), d, b.getBranchId());
+		b.setDiscount(x.discount());
+		b.setTaxAmount(x.taxAmount());
+		b.setFinalAmount(x.finalAmount());
+		return bm.toResponse(br.save(b));
+	}
+
+	public PaymentStatusResponse pay(Long id, PayFinalBillRequest r) {
+		Bill b = br.findById(id).orElseThrow(() -> new ResourceNotFoundException("Bill not found: " + id));
+		if ("SUCCESS".equalsIgnoreCase(b.getPaymentStatus()))
+			return new PaymentStatusResponse(id, "SUCCESS", "Bill already paid");
+		if (!pc.initiateFinalBillPayment(id, b.getBookingId(), b.getCustomerId(), b.getFinalAmount(),
+				r.paymentMethod()))
+			throw new BusinessRuleException("Unable to initiate payment");
+		b.setPaymentStatus(BillingConstants.PENDING);
+		br.save(b);
+		return new PaymentStatusResponse(id, "PENDING", "Payment initiated");
+	}
+
+	public List<BillChargeResponse> charges(Long id) {
+		if (!br.existsById(id))
+			throw new ResourceNotFoundException("Bill not found: " + id);
+		return cr.findByBillIdOrderByCreatedAtAsc(id).stream().map(cm::toResponse).toList();
+	}
+
+	public PageResponse<FinalBillResponse> branchBills(Long branchId, Pageable p) {
+		Page<Bill> x = br.findByBranchId(branchId, p);
+		return new PageResponse<>(x.getContent().stream().map(bm::toResponse).toList(), x.getNumber(), x.getSize(),
+				x.getTotalElements(), x.getTotalPages());
+	}
+
+	@Transactional
+	public void markPaidFromEvent(Long billId) {
+		br.findById(billId).ifPresent(b -> {
+			b.setPaymentStatus(BillingConstants.SUCCESS);
+			b.setBillStatus(BillStatus.PAID);
+			br.save(b);
+		});
+	}
+
+	@Transactional
+	public void addRestaurantCharge(Long bookingId, Long orderId, BigDecimal amount) {
+		if (amount == null || amount.signum() <= 0)
+			return;
+		Bill b = br.findByBookingId(bookingId).orElse(null);
+		if (b == null)
+			return;
+		boolean exists = cr.findByBillIdOrderByCreatedAtAsc(b.getBillId()).stream()
+				.anyMatch(c -> String.valueOf(orderId).equals(c.getReferenceId()));
+		if (exists)
+			return;
+		charge(b, ChargeType.RESTAURANT, "Restaurant order", String.valueOf(orderId), amount);
+		BigDecimal total = cr.findByBillIdOrderByCreatedAtAsc(b.getBillId()).stream()
+				.filter(c -> c.getChargeType() == ChargeType.RESTAURANT).map(BillCharge::getAmount)
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		var x = calc.calculate(b.getRoomCharges(), total, b.getDiscount(), b.getBranchId());
+		b.setRestaurantCharges(total);
+		b.setTaxAmount(x.taxAmount());
+		b.setFinalAmount(x.finalAmount());
+		br.save(b);
+	}
+
+	public FinalBillResponse getOrCreateFromCheckoutEvent(Long bookingId, Long branchId, Long customerId,
+			BigDecimal room, BigDecimal restaurant) {
+		Bill old = br.findByBookingId(bookingId).orElse(null);
+		return old != null ? bm.toResponse(old) : createBill(bookingId, branchId, customerId, n(room), n(restaurant));
+	}
+
+	private void charge(Bill b, ChargeType t, String d, String ref, BigDecimal a) {
+		if (a == null || a.signum() <= 0)
+			return;
+		cr.save(BillCharge.builder().billId(b.getBillId()).chargeType(t).description(d).referenceId(ref).amount(n(a))
+				.build());
+	}
+
+	private BigDecimal n(BigDecimal x) {
+		return x == null ? BigDecimal.ZERO.setScale(2) : x.setScale(2, RoundingMode.HALF_UP);
+	}
 }
