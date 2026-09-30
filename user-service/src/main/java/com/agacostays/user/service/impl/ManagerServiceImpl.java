@@ -1,22 +1,50 @@
 package com.agacostays.user.service.impl;
 
-import com.agacostays.user.client.BranchServiceClient;
-import com.agacostays.user.client.NotificationServiceClient;
-import com.agacostays.user.dto.request.*;
-import com.agacostays.user.dto.response.*;
-import com.agacostays.user.entity.*;
-import com.agacostays.user.enums.*;
-import com.agacostays.user.exception.*;
-import com.agacostays.user.mapper.CustomerMapper;
-import com.agacostays.user.mapper.StaffBranchMappingMapper;
-import com.agacostays.user.mapper.StaffMapper;
-import com.agacostays.user.repository.*;
-import com.agacostays.user.security.BranchAccessValidator;
-import com.agacostays.user.service.ManagerService;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.agacostays.user.client.BranchServiceClient;
+import com.agacostays.user.client.NotificationServiceClient;
+import com.agacostays.user.dto.request.AssignRoleRequest;
+import com.agacostays.user.dto.request.AssignStaffToBranchRequest;
+import com.agacostays.user.dto.request.CreateStaffRequest;
+import com.agacostays.user.dto.request.TransferBranchRequest;
+import com.agacostays.user.dto.request.UpdateCustomerStatusRequest;
+import com.agacostays.user.dto.request.UpdateStaffRequest;
+import com.agacostays.user.dto.response.CustomerResponse;
+import com.agacostays.user.dto.response.PageResponse;
+import com.agacostays.user.dto.response.StaffBranchMappingResponse;
+import com.agacostays.user.dto.response.StaffResponse;
+import com.agacostays.user.dto.response.UserStatusResponse;
+import com.agacostays.user.entity.Customer;
+import com.agacostays.user.entity.Role;
+import com.agacostays.user.entity.Staff;
+import com.agacostays.user.entity.StaffBranchMapping;
+import com.agacostays.user.entity.User;
+import com.agacostays.user.enums.BranchAssignmentStatus;
+import com.agacostays.user.enums.StaffStatus;
+import com.agacostays.user.enums.UserStatus;
+import com.agacostays.user.enums.UserType;
+import com.agacostays.user.exception.BranchMappingException;
+import com.agacostays.user.exception.CustomerNotFoundException;
+import com.agacostays.user.exception.DuplicateUserException;
+import com.agacostays.user.exception.InvalidRoleException;
+import com.agacostays.user.exception.RoleNotFoundException;
+import com.agacostays.user.exception.StaffNotFoundException;
+import com.agacostays.user.mapper.CustomerMapper;
+import com.agacostays.user.mapper.StaffBranchMappingMapper;
+import com.agacostays.user.mapper.StaffMapper;
+import com.agacostays.user.repository.CustomerRepository;
+import com.agacostays.user.repository.RoleRepository;
+import com.agacostays.user.repository.StaffBranchMappingRepository;
+import com.agacostays.user.repository.StaffRepository;
+import com.agacostays.user.repository.UserRepository;
+import com.agacostays.user.security.BranchAccessValidator;
+import com.agacostays.user.service.ManagerService;
 
 @Service
 public class ManagerServiceImpl implements ManagerService {
