@@ -2,6 +2,7 @@ package com.agacostays.booking.scheduler;
 
 import com.agacostays.booking.constants.BookingConstants;
 import com.agacostays.booking.entity.Booking;
+import com.agacostays.booking.entity.BookingHistory;
 import com.agacostays.booking.enums.BookingAction;
 import com.agacostays.booking.enums.BookingStatus;
 import com.agacostays.booking.producer.BookingEventProducer;

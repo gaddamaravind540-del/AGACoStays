@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public record JwtClaims(
         String userId,
@@ -13,7 +14,9 @@ public record JwtClaims(
         List<String> roles,
         String branchId
 ) {
+
     public static JwtClaims fromJwt(Jwt jwt) {
+
         String userId = firstNonBlank(
                 jwt.getClaimAsString("userId"),
                 jwt.getSubject()
@@ -26,24 +29,36 @@ public record JwtClaims(
         );
 
         List<String> roles = new ArrayList<>();
+
         Object rolesClaim = jwt.getClaims().get("roles");
+
         if (rolesClaim instanceof Collection<?> collection) {
-            collection.forEach(value -> roles.add(String.valueOf(value).toUpperCase()));
+            collection.forEach(
+                    value -> roles.add(
+                            String.valueOf(value).toUpperCase()
+                    )
+            );
         } else if (rolesClaim != null) {
-            roles.add(String.valueOf(rolesClaim).toUpperCase());
+            roles.add(
+                    String.valueOf(rolesClaim).toUpperCase()
+            );
         }
 
         String singleRole = jwt.getClaimAsString("role");
+
         if (singleRole != null && !singleRole.isBlank()) {
             roles.add(singleRole.toUpperCase());
         }
 
-        roles = roles.stream().filter(Objects::nonNull).distinct().toList();
+        List<String> uniqueRoles = roles.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
 
         return new JwtClaims(
                 userId,
                 username,
-                roles,
+                uniqueRoles,
                 jwt.getClaimAsString("branchId")
         );
     }

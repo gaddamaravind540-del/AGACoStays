@@ -1,6 +1,7 @@
 package com.agacostays.booking.service.impl;
 
 import com.agacostays.booking.client.RoomServiceClient;
+
 import com.agacostays.booking.client.UserServiceClient;
 import com.agacostays.booking.dto.request.*;
 import com.agacostays.booking.dto.response.*;
@@ -320,5 +321,71 @@ public class BookingServiceImpl implements BookingService {
                 .changedByRole(currentUserProvider.isAuthenticated() ? currentUserProvider.getCurrentRole() : null)
                 .remarks(remarks)
                 .build());
+    }
+    
+    @Override
+    @Transactional
+    public CheckInResponse checkIn(Long bookingId, CheckInRequest request) {
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+
+        statusValidationService.requireStatus(
+                booking,
+                BookingStatus.APPROVED
+        );
+
+        booking.setBookingStatus(BookingStatus.CHECKED_IN);
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+
+        bookingRepository.save(booking);
+
+        addHistory(
+                booking,
+                BookingAction.CHECKED_IN,
+                "Guest checked in"
+        );
+
+        eventProducer.statusChanged(booking);
+
+        return CheckInResponse.builder()
+                .bookingId(booking.getBookingId())
+                .status(booking.getBookingStatus().name())
+                .completedAt(OffsetDateTime.now())
+                .guestName(request.getGuestName())
+                .build();
+    }
+    
+    @Override
+    @Transactional
+    public CheckOutResponse checkOut(Long bookingId, CheckOutRequest request) {
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(BookingNotFoundException::new);
+
+        statusValidationService.requireStatus(
+                booking,
+                BookingStatus.CHECKED_IN
+        );
+
+        booking.setBookingStatus(BookingStatus.CHECKED_OUT);
+        booking.setUpdatedBy(currentUserProvider.getCurrentUserId());
+
+        bookingRepository.save(booking);
+
+        addHistory(
+                booking,
+                BookingAction.CHECKED_OUT,
+                request.getRemarks()
+        );
+
+        eventProducer.statusChanged(booking);
+
+        return CheckOutResponse.builder()
+                .bookingId(booking.getBookingId())
+                .status(booking.getBookingStatus().name())
+                .completedAt(OffsetDateTime.now())
+                .billingStatus(booking.getPaymentStatus().name())
+                .build();
     }
 }
