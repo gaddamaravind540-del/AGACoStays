@@ -1,0 +1,52 @@
+{"properties": [
+  {
+    "name": "service.user.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.user.url'"
+  },
+  {
+    "name": "service.attendance.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.attendance.url'"
+  },
+  {
+    "name": "service.notification.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.notification.url'"
+  },
+  {
+    "name": "payroll.currency",
+    "type": "java.lang.String",
+    "description": "A description for 'payroll.currency'"
+  },
+  {
+    "name": "payroll.default-working-days",
+    "type": "java.lang.String",
+    "description": "A description for 'payroll.default-working-days'"
+  },
+  {
+    "name": "payroll.auto-generate-enabled",
+    "type": "java.lang.String",
+    "description": "A description for 'payroll.auto-generate-enabled'"
+  },
+  {
+    "name": "payroll.auto-generate.cron",
+    "type": "java.lang.String",
+    "description": "A description for 'payroll.auto-generate.cron'"
+  },
+  {
+    "name": "payroll.storage.path",
+    "type": "java.lang.String",
+    "description": "A description for 'payroll.storage.path'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "security.jwt.issuer",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.issuer'"
+  }
+]}

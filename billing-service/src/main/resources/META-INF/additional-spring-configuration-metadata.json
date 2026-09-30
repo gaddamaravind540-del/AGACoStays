@@ -1,0 +1,42 @@
+{"properties": [
+  {
+    "name": "service.booking.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.booking.url'"
+  },
+  {
+    "name": "service.restaurant.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.restaurant.url'"
+  },
+  {
+    "name": "service.payment.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.payment.url'"
+  },
+  {
+    "name": "billing.default-tax-rate",
+    "type": "java.lang.String",
+    "description": "A description for 'billing.default-tax-rate'"
+  },
+  {
+    "name": "billing.storage.path",
+    "type": "java.lang.String",
+    "description": "A description for 'billing.storage.path'"
+  },
+  {
+    "name": "billing.currency",
+    "type": "java.lang.String",
+    "description": "A description for 'billing.currency'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "security.jwt.issuer",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.issuer'"
+  }
+]}

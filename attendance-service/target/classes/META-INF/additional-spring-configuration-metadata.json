@@ -1,0 +1,37 @@
+{"properties": [
+  {
+    "name": "service.user.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.user.url'"
+  },
+  {
+    "name": "service.payroll.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.payroll.url'"
+  },
+  {
+    "name": "attendance.missed-checkout.enabled",
+    "type": "java.lang.String",
+    "description": "A description for 'attendance.missed-checkout.enabled'"
+  },
+  {
+    "name": "attendance.missed-checkout.hour",
+    "type": "java.lang.String",
+    "description": "A description for 'attendance.missed-checkout.hour'"
+  },
+  {
+    "name": "attendance.default-workday-hours",
+    "type": "java.lang.String",
+    "description": "A description for 'attendance.default-workday-hours'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "security.jwt.issuer",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.issuer'"
+  }
+]}
