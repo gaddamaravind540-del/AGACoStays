@@ -4,10 +4,21 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class FoodDeliveredEventConsumer.java {
-    @KafkaListener(topics="food-delivered", groupId="support-feedback-service")
+public class FoodDeliveredEventConsumer {
+
+    @KafkaListener(
+            topics = "food-delivered",
+            groupId = "support-feedback-service"
+    )
     public void handle(String message) {
-        // Event contract is intentionally kept at the shared Kafka boundary.
+
+        // Event contract is intentionally kept
+        // at the shared Kafka boundary.
         // Production handlers should be idempotent.
+
+        System.out.println(
+                "Food delivered event received: "
+                        + message
+        );
     }
 }

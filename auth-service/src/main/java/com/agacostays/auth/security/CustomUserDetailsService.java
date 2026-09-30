@@ -2,7 +2,9 @@ package com.agacostays.auth.security;
 
 import com.agacostays.auth.entity.User;
 import com.agacostays.auth.repository.UserRepository;
-import org.springframework.security.core.userdetails.*;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -15,15 +17,26 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByEmailIgnoreCase(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    public UserDetails loadUserByUsername(String username)
+            throws UsernameNotFoundException {
 
-        return User.withUsername(user.getEmail())
+        User user = userRepository
+                .findByEmailIgnoreCase(username)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found"));
+
+        return org.springframework.security.core.userdetails.User
+                .withUsername(user.getEmail())
                 .password(user.getPasswordHash())
                 .roles(user.getRole().getRoleName())
-                .disabled(user.getStatus().name().equals("INACTIVE"))
-                .accountLocked(user.getStatus().name().equals("LOCKED"))
+                .disabled(
+                        user.getStatus() != null &&
+                        user.getStatus().name().equals("INACTIVE")
+                )
+                .accountLocked(
+                        user.getStatus() != null &&
+                        user.getStatus().name().equals("LOCKED")
+                )
                 .build();
     }
 }

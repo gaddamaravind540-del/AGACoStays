@@ -4,11 +4,17 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class BillingGeneratedEventConsumer.java {
+public class BillingGeneratedEventConsumer {
 
-    @KafkaListener(topics = "billing-generated", groupId = "booking-service")
+    @KafkaListener(
+            topics = "billing-generated",
+            groupId = "booking-service"
+    )
     public void handle(String message) {
+
         // Event contract is consumed here after the upstream service finalizes its schema.
         // Keep processing idempotent in the production implementation.
+
+        System.out.println("Received Billing Event: " + message);
     }
 }
