@@ -1,0 +1,37 @@
+{"properties": [
+  {
+    "name": "services.booking.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.booking.url'"
+  },
+  {
+    "name": "services.user.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.user.url'"
+  },
+  {
+    "name": "services.payment.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.payment.url'"
+  },
+  {
+    "name": "services.billing.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.billing.url'"
+  },
+  {
+    "name": "services.notification.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.notification.url'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "storage.local.root",
+    "type": "java.lang.String",
+    "description": "A description for 'storage.local.root'"
+  }
+]}

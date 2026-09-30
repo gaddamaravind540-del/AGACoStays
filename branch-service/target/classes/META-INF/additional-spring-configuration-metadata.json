@@ -1,0 +1,27 @@
+{"properties": [
+  {
+    "name": "app.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.secret'"
+  },
+  {
+    "name": "app.clients.user-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.user-service-url'"
+  },
+  {
+    "name": "app.clients.notification-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.notification-service-url'"
+  },
+  {
+    "name": "app.storage.local-directory",
+    "type": "java.lang.String",
+    "description": "A description for 'app.storage.local-directory'"
+  },
+  {
+    "name": "app.storage.public-base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.storage.public-base-url'"
+  }
+]}

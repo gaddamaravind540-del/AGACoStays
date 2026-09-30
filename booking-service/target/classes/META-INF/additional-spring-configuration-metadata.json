@@ -1,0 +1,32 @@
+{"properties": [
+  {
+    "name": "services.room.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.room.url'"
+  },
+  {
+    "name": "services.user.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.user.url'"
+  },
+  {
+    "name": "services.billing.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.billing.url'"
+  },
+  {
+    "name": "services.payment.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.payment.url'"
+  },
+  {
+    "name": "services.notification.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.notification.url'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  }
+]}

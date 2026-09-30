@@ -1,0 +1,47 @@
+{"properties": [
+  {
+    "name": "app.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.secret'"
+  },
+  {
+    "name": "app.jwt.access-token-expiration-seconds",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.access-token-expiration-seconds'"
+  },
+  {
+    "name": "app.jwt.refresh-token-expiration-days",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.refresh-token-expiration-days'"
+  },
+  {
+    "name": "app.password-reset.expiration-minutes",
+    "type": "java.lang.String",
+    "description": "A description for 'app.password-reset.expiration-minutes'"
+  },
+  {
+    "name": "app.otp.expiration-minutes",
+    "type": "java.lang.String",
+    "description": "A description for 'app.otp.expiration-minutes'"
+  },
+  {
+    "name": "app.otp.expose-in-development",
+    "type": "java.lang.String",
+    "description": "A description for 'app.otp.expose-in-development'"
+  },
+  {
+    "name": "app.clients.user-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.user-service-url'"
+  },
+  {
+    "name": "app.clients.notification-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.notification-service-url'"
+  },
+  {
+    "name": "app.cleanup.cron",
+    "type": "java.lang.String",
+    "description": "A description for 'app.cleanup.cron'"
+  }
+]}

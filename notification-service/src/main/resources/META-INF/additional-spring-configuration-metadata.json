@@ -1,0 +1,57 @@
+{"properties": [
+  {
+    "name": "notification.user-service.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.user-service.base-url'"
+  },
+  {
+    "name": "notification.scheduler.lock-attempt-minutes",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.scheduler.lock-attempt-minutes'"
+  },
+  {
+    "name": "notification.scheduler.fixed-delay-ms",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.scheduler.fixed-delay-ms'"
+  },
+  {
+    "name": "notification.retry.max-attempts",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.retry.max-attempts'"
+  },
+  {
+    "name": "notification.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.jwt.secret'"
+  },
+  {
+    "name": "notification.email.enabled",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.email.enabled'"
+  },
+  {
+    "name": "notification.email.from",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.email.from'"
+  },
+  {
+    "name": "notification.sms.enabled",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.sms.enabled'"
+  },
+  {
+    "name": "notification.sms.api-url",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.sms.api-url'"
+  },
+  {
+    "name": "notification.sms.api-key",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.sms.api-key'"
+  },
+  {
+    "name": "notification.sms.sender-id",
+    "type": "java.lang.String",
+    "description": "A description for 'notification.sms.sender-id'"
+  }
+]}

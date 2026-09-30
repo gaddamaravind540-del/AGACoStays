@@ -1,0 +1,32 @@
+{"properties": [
+  {
+    "name": "services.branch.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.branch.url'"
+  },
+  {
+    "name": "services.booking.url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.booking.url'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "storage.local.root",
+    "type": "java.lang.String",
+    "description": "A description for 'storage.local.root'"
+  },
+  {
+    "name": "storage.local.root",
+    "type": "java.lang.String",
+    "description": "A description for 'storage.local.root'"
+  }
+]}

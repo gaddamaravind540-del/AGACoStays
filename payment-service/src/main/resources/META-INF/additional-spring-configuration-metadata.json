@@ -1,0 +1,77 @@
+{"properties": [
+  {
+    "name": "app.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.secret'"
+  },
+  {
+    "name": "app.jwt.issuer",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.issuer'"
+  },
+  {
+    "name": "payment.gateway.name",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.name'"
+  },
+  {
+    "name": "payment.gateway.key-id",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.key-id'"
+  },
+  {
+    "name": "payment.gateway.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.secret'"
+  },
+  {
+    "name": "payment.gateway.webhook-secret",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.webhook-secret'"
+  },
+  {
+    "name": "payment.gateway.currency",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.currency'"
+  },
+  {
+    "name": "payment.gateway.mock-enabled",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.gateway.mock-enabled'"
+  },
+  {
+    "name": "payment.validation.allow-request-amount",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.validation.allow-request-amount'"
+  },
+  {
+    "name": "payment.reconciliation.pending-age-minutes",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.reconciliation.pending-age-minutes'"
+  },
+  {
+    "name": "payment.idempotency.ttl-minutes",
+    "type": "java.lang.String",
+    "description": "A description for 'payment.idempotency.ttl-minutes'"
+  },
+  {
+    "name": "services.booking.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.booking.base-url'"
+  },
+  {
+    "name": "services.restaurant.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.restaurant.base-url'"
+  },
+  {
+    "name": "services.billing.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.billing.base-url'"
+  },
+  {
+    "name": "services.notification.base-url",
+    "type": "java.lang.String",
+    "description": "A description for 'services.notification.base-url'"
+  }
+]}

@@ -1,0 +1,27 @@
+{"properties": [
+  {
+    "name": "app.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'app.jwt.secret'"
+  },
+  {
+    "name": "app.clients.branch-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.branch-service-url'"
+  },
+  {
+    "name": "app.clients.notification-service-url",
+    "type": "java.lang.String",
+    "description": "A description for 'app.clients.notification-service-url'"
+  },
+  {
+    "name": "app.mapping-cleanup.cron",
+    "type": "java.lang.String",
+    "description": "A description for 'app.mapping-cleanup.cron'"
+  },
+  {
+    "name": "app.kafka.topics.user-registered",
+    "type": "java.lang.String",
+    "description": "A description for 'app.kafka.topics.user-registered'"
+  }
+]}

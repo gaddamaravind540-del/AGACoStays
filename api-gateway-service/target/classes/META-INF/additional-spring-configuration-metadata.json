@@ -1,0 +1,107 @@
+{"properties": [
+  {
+    "name": "gateway.services.auth-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.auth-url'"
+  },
+  {
+    "name": "gateway.services.user-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.user-url'"
+  },
+  {
+    "name": "gateway.services.branch-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.branch-url'"
+  },
+  {
+    "name": "gateway.services.room-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.room-url'"
+  },
+  {
+    "name": "gateway.services.booking-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.booking-url'"
+  },
+  {
+    "name": "gateway.services.payment-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.payment-url'"
+  },
+  {
+    "name": "gateway.services.restaurant-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.restaurant-url'"
+  },
+  {
+    "name": "gateway.services.billing-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.billing-url'"
+  },
+  {
+    "name": "gateway.services.notification-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.notification-url'"
+  },
+  {
+    "name": "gateway.services.attendance-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.attendance-url'"
+  },
+  {
+    "name": "gateway.services.payroll-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.payroll-url'"
+  },
+  {
+    "name": "gateway.services.analytics-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.analytics-url'"
+  },
+  {
+    "name": "gateway.services.support-url",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.services.support-url'"
+  },
+  {
+    "name": "gateway.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.jwt.secret'"
+  },
+  {
+    "name": "app.gateway.rate-limit.replenish-rate",
+    "type": "java.lang.String",
+    "description": "A description for 'app.gateway.rate-limit.replenish-rate'"
+  },
+  {
+    "name": "app.gateway.rate-limit.burst-capacity",
+    "type": "java.lang.String",
+    "description": "A description for 'app.gateway.rate-limit.burst-capacity'"
+  },
+  {
+    "name": "app.gateway.rate-limit.fail-open",
+    "type": "java.lang.String",
+    "description": "A description for 'app.gateway.rate-limit.fail-open'"
+  },
+  {
+    "name": "gateway.cors.allowed-origins",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.cors.allowed-origins'"
+  },
+  {
+    "name": "gateway.cors.allowed-headers",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.cors.allowed-headers'"
+  },
+  {
+    "name": "gateway.cors.allowed-methods",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.cors.allowed-methods'"
+  },
+  {
+    "name": "gateway.cors.allow-credentials",
+    "type": "java.lang.String",
+    "description": "A description for 'gateway.cors.allow-credentials'"
+  }
+]}

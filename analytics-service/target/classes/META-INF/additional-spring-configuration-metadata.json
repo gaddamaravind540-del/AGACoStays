@@ -1,0 +1,42 @@
+{"properties": [
+  {
+    "name": "service.restaurant.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.restaurant.url'"
+  },
+  {
+    "name": "service.booking.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.booking.url'"
+  },
+  {
+    "name": "service.attendance.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.attendance.url'"
+  },
+  {
+    "name": "service.payment.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.payment.url'"
+  },
+  {
+    "name": "service.payroll.url",
+    "type": "java.lang.String",
+    "description": "A description for 'service.payroll.url'"
+  },
+  {
+    "name": "analytics.storage.path",
+    "type": "java.lang.String",
+    "description": "A description for 'analytics.storage.path'"
+  },
+  {
+    "name": "security.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.secret'"
+  },
+  {
+    "name": "security.jwt.issuer",
+    "type": "java.lang.String",
+    "description": "A description for 'security.jwt.issuer'"
+  }
+]}
