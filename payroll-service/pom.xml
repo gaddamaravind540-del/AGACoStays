@@ -30,6 +30,7 @@
 
     <dependencyManagement>
         <dependencies>
+
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -37,10 +38,22 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
+		
+		 <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <!-- Eureka Client -->
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -165,6 +178,7 @@
     </dependencies>
 
     <build>
+
         <plugins>
 
             <plugin>
@@ -185,6 +199,7 @@
                     </annotationProcessorPaths>
 
                 </configuration>
+
             </plugin>
 
             <plugin>
@@ -193,6 +208,7 @@
             </plugin>
 
         </plugins>
+
     </build>
 
 </project>

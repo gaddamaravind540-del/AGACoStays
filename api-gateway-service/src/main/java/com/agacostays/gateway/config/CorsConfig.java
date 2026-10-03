@@ -1,6 +1,5 @@
 package com.agacostays.gateway.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -14,25 +13,42 @@ import java.util.List;
 public class CorsConfig {
 
     @Bean
-    CorsWebFilter corsWebFilter(
-            @Value("${gateway.cors.allowed-origins:http://localhost:3000}") String allowedOrigins,
-            @Value("${gateway.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}") String allowedMethods,
-            @Value("${gateway.cors.allowed-headers:*}") String allowedHeaders,
-            @Value("${gateway.cors.allow-credentials:true}") boolean allowCredentials) {
-
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim).filter(s -> !s.isBlank()).toList());
-        configuration.setAllowedMethods(Arrays.stream(allowedMethods.split(","))
-                .map(String::trim).filter(s -> !s.isBlank()).toList());
-        configuration.setAllowedHeaders(allowedHeaders.equals("*")
-                ? List.of("*")
-                : Arrays.stream(allowedHeaders.split(",")).map(String::trim).toList());
-        configuration.setAllowCredentials(allowCredentials);
-        configuration.setMaxAge(3600L);
+    public CorsWebFilter corsWebFilter() {
+        CorsConfiguration corsConfig = new CorsConfiguration();
+        
+        // Allowed client origins (Vite React dev servers)
+        corsConfig.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:3000"
+        ));
+        
+        // Allowed HTTP methods
+        corsConfig.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
+        
+        // Allowed request headers
+        corsConfig.setAllowedHeaders(List.of("*"));
+        
+        // Headers exposed to browser JS (useful for reading auth headers)
+        corsConfig.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
+        ));
+        
+        // Allow cookies / Authorization credentials
+        corsConfig.setAllowCredentials(true);
+        
+        // Pre-flight request cache duration (1 hour)
+        corsConfig.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", corsConfig);
+
         return new CorsWebFilter(source);
     }
 }
