@@ -33,7 +33,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest servletRequest) {
         return ResponseEntity.ok(ApiResponse.success(
-                "Customer registered successfully",
+                "User registered successfully",
                 authService.register(request),
                 traceId(servletRequest)
         ));

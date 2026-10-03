@@ -63,16 +63,21 @@ public class AuthServiceImpl implements AuthService {
             throw new UserAlreadyExistsException("A user with this email already exists");
         }
 
-        Role customerRole = roleRepository.findByRoleNameIgnoreCase(AuthConstants.CUSTOMER_ROLE)
-                .orElseThrow(() -> new UserNotFoundException("CUSTOMER role is not configured"));
+        // Dynamically resolve role from the request or fallback to CUSTOMER
+        String requestedRole = (request.role() != null && !request.role().isBlank())
+                ? request.role().trim()
+                : AuthConstants.CUSTOMER_ROLE;
+
+        Role userRole = resolveRole(requestedRole);
+        UserType userType = resolveUserType(userRole.getRoleName());
 
         User user = User.builder()
                 .fullName(request.fullName().trim())
                 .email(email)
                 .phone(request.phone() == null ? null : request.phone().trim())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .role(customerRole)
-                .userType(UserType.CUSTOMER)
+                .role(userRole)
+                .userType(userType)
                 .status(UserStatus.ACTIVE)
                 .authProvider(AuthProvider.LOCAL)
                 .build();
@@ -178,5 +183,34 @@ public class AuthServiceImpl implements AuthService {
                 .ipAddress(ip)
                 .userAgent(agent)
                 .build());
+    }
+
+    /**
+     * Resolves role by trying the exact name, alternate prefix (with or without 'ROLE_'),
+     * or defaulting to the configured CUSTOMER role.
+     */
+    private Role resolveRole(String roleName) {
+        return roleRepository.findByRoleNameIgnoreCase(roleName)
+                .or(() -> {
+                    String alternate = roleName.toUpperCase().startsWith("ROLE_")
+                            ? roleName.substring(5)
+                            : "ROLE_" + roleName;
+                    return roleRepository.findByRoleNameIgnoreCase(alternate);
+                })
+                .orElseGet(() -> roleRepository.findByRoleNameIgnoreCase(AuthConstants.CUSTOMER_ROLE)
+                        .orElseThrow(() -> new UserNotFoundException("Role is not configured: " + roleName)));
+    }
+
+    /**
+     * Matches the UserType enum dynamically to prevent IllegalArgumentException.
+     */
+    private UserType resolveUserType(String roleName) {
+        String clean = roleName.toUpperCase().replace("ROLE_", "");
+        for (UserType type : UserType.values()) {
+            if (type.name().equalsIgnoreCase(clean)) {
+                return type;
+            }
+        }
+        return UserType.CUSTOMER;
     }
 }
