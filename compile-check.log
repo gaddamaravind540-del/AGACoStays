@@ -1,0 +1,235 @@
+
+==== analytics-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== api-gateway-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== attendance-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== auth-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== billing-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== booking-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== branch-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== Eureka-server ====
+
+==== notification-service ====
+mvnw.cmd : Missing distributionUrl in "C:\Users\2481578\OneDrive - Cognizant\Do
+cuments\HotelMgtApp\AGACoStays\notification-service\.mvn\wrapper\maven-wrapper.
+properties" 
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Missing distrib...er.properties"  
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+==== payment-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== payroll-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== restaurant-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== room-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== support-feedback-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+
+==== user-service ====
+mvnw.cmd : WARNING: A terminally deprecated method in sun.misc.Unsafe has been 
+called
+At line:1 char:476
++ ... c.FullName; & .\mvnw.cmd -q -DskipTests compile *> temp-compile-outpu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A term...has been called 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by 
+com.google.inject.internal.aop.HiddenClassDefiner (file:/C:/Users/2481578/.m2/w
+rapper/dists/apache-maven-3.9.11/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class 
+com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
